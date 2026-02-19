@@ -2,8 +2,8 @@ export interface Env {
   DB: D1Database;
   KV: KVNamespace;
   SIGNALING: DurableObjectNamespace;
-  METRICS_QUEUE: Queue;
   JWT_SECRET: string;
+  INVITE_CODE: string;
 }
 
 export interface User {

@@ -4,16 +4,18 @@ import type { Env } from './types';
 import { auth } from './auth/handlers';
 import { devices } from './api/devices';
 import { networks } from './api/networks';
-import { metrics, handleMetricsQueue } from './api/metrics';
+import { metrics } from './api/metrics';
 import { authMiddleware } from './auth/middleware';
 
 export { SignalingRoom } from './signaling/room';
 
 const app = new Hono<{ Bindings: Env }>();
 
-// CORS
+// CORS — restrict to production origin only.
+// The WireGuard CLI client is not a browser and does not send CORS preflight
+// requests, so locking this down does not affect CLI functionality.
 app.use('*', cors({
-  origin: '*',
+  origin: 'https://shireguard.com',
   allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Authorization', 'Content-Type'],
 }));
@@ -72,8 +74,4 @@ app.get('/v1/signal/:network_id', authMiddleware, async (c) => {
 
 export default {
   fetch: app.fetch,
-
-  async queue(batch: MessageBatch, env: Env) {
-    await handleMetricsQueue(batch as Parameters<typeof handleMetricsQueue>[0], env);
-  },
 };

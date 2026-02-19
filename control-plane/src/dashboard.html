@@ -409,6 +409,10 @@ body::after{
           <label class="form-label">Password</label>
           <input class="form-input" type="password" name="password" placeholder="Min 8 characters" required minlength="8" autocomplete="new-password">
         </div>
+        <div class="form-group">
+          <label class="form-label">Invite Code</label>
+          <input class="form-input" type="text" name="invite_code" placeholder="Required" required autocomplete="off">
+        </div>
         <button class="btn btn-primary" type="submit">Create Account</button>
         <div class="auth-error" id="register-error"></div>
       </form>
@@ -725,7 +729,7 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
   errEl.classList.remove('visible');
   try {
     const data = await api('POST', '/v1/auth/register', {
-      email: fd.get('email'), password: fd.get('password')
+      email: fd.get('email'), password: fd.get('password'), invite_code: fd.get('invite_code')
     });
     handleAuth(data);
   } catch (err) {

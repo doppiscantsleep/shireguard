@@ -5,7 +5,7 @@ import { authMiddleware } from '../auth/middleware';
 const metrics = new Hono<{ Bindings: Env }>();
 metrics.use('*', authMiddleware);
 
-// POST /metrics - Batched metrics ingestion
+// POST /metrics - Batched metrics ingestion (write directly to D1)
 metrics.post('/', async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json<MetricsBatch>();
@@ -14,24 +14,71 @@ metrics.post('/', async (c) => {
     return c.json({ error: 'device_id and metrics array are required' }, 400);
   }
 
-  // Verify device ownership
+  // Verify device ownership and capture the network the device belongs to.
   const device = await c.env.DB.prepare(
-    'SELECT id FROM devices WHERE id = ? AND user_id = ?'
+    'SELECT id, network_id FROM devices WHERE id = ? AND user_id = ?'
   )
     .bind(body.device_id, userId)
-    .first();
+    .first<{ id: string; network_id: string }>();
 
   if (!device) {
     return c.json({ error: 'Device not found' }, 404);
   }
 
-  // Enqueue metrics for async processing
-  await c.env.METRICS_QUEUE.send({
-    device_id: body.device_id,
-    user_id: userId,
-    metrics: body.metrics,
-    received_at: new Date().toISOString(),
-  });
+  // Validate that every peer_device_id in the batch belongs to the same
+  // network.  This prevents a compromised device from poisoning metrics rows
+  // that reference peers it has no legitimate relationship with.
+  const peerIds = [
+    ...new Set(
+      body.metrics
+        .map((e) => e.peer_device_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    ),
+  ];
+
+  if (peerIds.length > 0) {
+    // Build a parameterised IN clause — D1 does not support array binding
+    // natively so we construct the placeholders manually.
+    const placeholders = peerIds.map(() => '?').join(', ');
+    const peerRows = await c.env.DB.prepare(
+      `SELECT id FROM devices WHERE id IN (${placeholders}) AND network_id = ?`,
+    )
+      .bind(...peerIds, device.network_id)
+      .all<{ id: string }>();
+
+    if (peerRows.results.length !== peerIds.length) {
+      return c.json(
+        { error: 'One or more peer_device_id values do not belong to the same network' },
+        400,
+      );
+    }
+  }
+
+  // Write directly to D1
+  for (const entry of body.metrics) {
+    const bucket = entry.timestamp.slice(0, 16); // Truncate to minute
+    const qualityScore = computeQualityScore(entry);
+
+    await c.env.DB.prepare(
+      `INSERT INTO metrics (device_id, peer_device_id, bucket, bucket_size, latency_ms, jitter_ms,
+       packet_loss_ratio, throughput_tx_bytes, throughput_rx_bytes, nat_type, connection_type, quality_score)
+       VALUES (?, ?, ?, '1m', ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        body.device_id,
+        entry.peer_device_id || null,
+        bucket,
+        entry.latency_ms ?? null,
+        entry.jitter_ms ?? null,
+        entry.packet_loss_ratio ?? null,
+        entry.throughput_tx_bytes ?? null,
+        entry.throughput_rx_bytes ?? null,
+        entry.nat_type ?? null,
+        entry.connection_type ?? 'direct',
+        qualityScore
+      )
+      .run();
+  }
 
   return c.json({ accepted: body.metrics.length });
 });
@@ -97,73 +144,27 @@ metrics.get('/summary/:network_id', async (c) => {
 
 export { metrics };
 
-// Queue consumer for processing batched metrics
-export async function handleMetricsQueue(
-  batch: MessageBatch<{
-    device_id: string;
-    user_id: string;
-    metrics: MetricsBatch['metrics'];
-    received_at: string;
-  }>,
-  env: Env
-) {
-  for (const msg of batch.messages) {
-    const { device_id, metrics: entries } = msg.body;
-
-    for (const entry of entries) {
-      const bucket = entry.timestamp.slice(0, 16); // Truncate to minute: YYYY-MM-DDTHH:MM
-      const qualityScore = computeQualityScore(entry);
-
-      await env.DB.prepare(
-        `INSERT INTO metrics (device_id, peer_device_id, bucket, bucket_size, latency_ms, jitter_ms,
-         packet_loss_ratio, throughput_tx_bytes, throughput_rx_bytes, nat_type, connection_type, quality_score)
-         VALUES (?, ?, ?, '1m', ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-        .bind(
-          device_id,
-          entry.peer_device_id || null,
-          bucket,
-          entry.latency_ms ?? null,
-          entry.jitter_ms ?? null,
-          entry.packet_loss_ratio ?? null,
-          entry.throughput_tx_bytes ?? null,
-          entry.throughput_rx_bytes ?? null,
-          entry.nat_type ?? null,
-          entry.connection_type ?? 'direct',
-          qualityScore
-        )
-        .run();
-    }
-
-    msg.ack();
-  }
-}
-
 function computeQualityScore(entry: MetricsBatch['metrics'][0]): number {
   let score = 100;
 
-  // Latency penalties
   if (entry.latency_ms !== undefined) {
     if (entry.latency_ms > 300) score -= 30;
     else if (entry.latency_ms > 150) score -= 15;
     else if (entry.latency_ms > 50) score -= 5;
   }
 
-  // Jitter penalties
   if (entry.jitter_ms !== undefined) {
     if (entry.jitter_ms > 100) score -= 20;
     else if (entry.jitter_ms > 50) score -= 10;
     else if (entry.jitter_ms > 20) score -= 5;
   }
 
-  // Packet loss penalties
   if (entry.packet_loss_ratio !== undefined) {
     if (entry.packet_loss_ratio > 0.1) score -= 30;
     else if (entry.packet_loss_ratio > 0.05) score -= 15;
     else if (entry.packet_loss_ratio > 0.01) score -= 5;
   }
 
-  // Relay penalty
   if (entry.connection_type === 'relay') score -= 10;
 
   return Math.max(0, score);

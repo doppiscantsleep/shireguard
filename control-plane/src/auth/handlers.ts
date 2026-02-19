@@ -3,14 +3,32 @@ import type { Env } from '../types';
 import { hashPassword, verifyPassword } from './crypto';
 import { createAccessToken, createRefreshToken, refreshTokenTTL, verifyAccessToken } from './jwt';
 import { authMiddleware } from './middleware';
+import { checkRateLimit } from './ratelimit';
 
 const auth = new Hono<{ Bindings: Env }>();
 
 // POST /auth/register
 auth.post('/register', async (c) => {
-  const body = await c.req.json<{ email: string; password: string }>();
+  // Rate limit: 5 registration attempts per IP per hour.
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const rl = await checkRateLimit(c.env.KV, ip, {
+    action: 'register',
+    limit: 5,
+    windowSeconds: 3600,
+  });
+  if (rl.limited) {
+    return c.json({ error: 'Too many registration attempts. Try again later.' }, 429, {
+      'Retry-After': String(rl.retryAfter),
+    });
+  }
+
+  const body = await c.req.json<{ email: string; password: string; invite_code?: string }>();
   if (!body.email || !body.password) {
     return c.json({ error: 'Email and password are required' }, 400);
+  }
+
+  if (body.invite_code !== c.env.INVITE_CODE) {
+    return c.json({ error: 'Invalid invite code' }, 403);
   }
 
   if (body.password.length < 8) {
@@ -59,6 +77,19 @@ auth.post('/register', async (c) => {
 
 // POST /auth/login
 auth.post('/login', async (c) => {
+  // Rate limit: 10 login attempts per IP per minute.
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const rl = await checkRateLimit(c.env.KV, ip, {
+    action: 'login',
+    limit: 10,
+    windowSeconds: 60,
+  });
+  if (rl.limited) {
+    return c.json({ error: 'Too many login attempts. Try again later.' }, 429, {
+      'Retry-After': String(rl.retryAfter),
+    });
+  }
+
   const body = await c.req.json<{ email: string; password: string }>();
   if (!body.email || !body.password) {
     return c.json({ error: 'Email and password are required' }, 400);

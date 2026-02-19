@@ -59,7 +59,7 @@ export class SignalingRoom implements DurableObject {
 
     const tags = this.state.getTags(ws);
     if (!tags || tags.length < 2) return;
-    const [_networkId, fromDeviceId] = tags;
+    const [senderNetworkId, fromDeviceId] = tags;
 
     // Stamp the sender
     msg.from = fromDeviceId;
@@ -69,14 +69,19 @@ export class SignalingRoom implements DurableObject {
       return;
     }
 
-    // Route to specific peer or broadcast
+    // Route to specific peer or broadcast — enforce network isolation so a
+    // client cannot reach peers that were registered under a different network
+    // even if they share the same Durable Object instance.
     const sockets = this.state.getWebSockets();
     for (const socket of sockets) {
       if (socket === ws) continue;
 
       const peerTags = this.state.getTags(socket);
       if (!peerTags || peerTags.length < 2) continue;
-      const [_peerNetworkId, peerDeviceId] = peerTags;
+      const [peerNetworkId, peerDeviceId] = peerTags;
+
+      // Drop the message if the peer belongs to a different network.
+      if (peerNetworkId !== senderNetworkId) continue;
 
       if (msg.to && msg.to !== peerDeviceId) continue;
 

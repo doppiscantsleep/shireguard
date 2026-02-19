@@ -1,0 +1,19 @@
+{
+  "name": "shireguard-control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "migrate": "wrangler d1 migrations apply shireguard-db",
+    "migrate:local": "wrangler d1 migrations apply shireguard-db --local"
+  },
+  "dependencies": {
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250214.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^3.109.0"
+  }
+}

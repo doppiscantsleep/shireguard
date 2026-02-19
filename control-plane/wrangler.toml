@@ -1,0 +1,36 @@
+name = "shireguard-api"
+main = "src/index.ts"
+compatibility_date = "2025-02-14"
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "shireguard-db"
+database_id = "placeholder-replace-after-creation"
+migrations_dir = "src/db/migrations"
+
+[durable_objects]
+bindings = [
+  { name = "SIGNALING", class_name = "SignalingRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SignalingRoom"]
+
+[[kv_namespaces]]
+binding = "KV"
+id = "placeholder-replace-after-creation"
+
+[[queues.producers]]
+binding = "METRICS_QUEUE"
+queue = "shireguard-metrics"
+
+[[queues.consumers]]
+queue = "shireguard-metrics"
+max_batch_size = 100
+max_batch_timeout = 30

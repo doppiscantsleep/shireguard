@@ -1,0 +1,41 @@
+version: 2
+
+builds:
+  - id: shireguard
+    dir: client
+    main: ./cmd/shireguard
+    binary: shireguard
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - arm64
+      - amd64
+
+  - id: shireguard-relay
+    dir: relay
+    main: ./cmd/shireguard-relay
+    binary: shireguard-relay
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - arm64
+      - amd64
+
+archives:
+  - id: client
+    builds:
+      - shireguard
+    name_template: "shireguard_{{ .Os }}_{{ .Arch }}"
+
+  - id: relay
+    builds:
+      - shireguard-relay
+    name_template: "shireguard-relay_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"

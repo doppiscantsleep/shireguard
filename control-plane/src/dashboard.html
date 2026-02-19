@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shireguard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-root:#0a0e14;
+  --bg-surface:#0d1117;
+  --bg-elevated:#131921;
+  --bg-input:#0d1117;
+  --border:#1c2433;
+  --border-focus:#2d9cdb;
+  --text-primary:#e6edf3;
+  --text-secondary:#8b949e;
+  --text-muted:#484f58;
+  --accent:#2dd4bf;
+  --accent-dim:rgba(45,212,191,.12);
+  --amber:#f59e0b;
+  --amber-dim:rgba(245,158,11,.12);
+  --red:#ef4444;
+  --red-dim:rgba(239,68,68,.12);
+  --green:#22c55e;
+  --green-dim:rgba(34,197,94,.12);
+  --blue:#3b82f6;
+  --blue-dim:rgba(59,130,246,.12);
+  --sidebar-w:240px;
+  --header-h:56px;
+  --font-mono:'IBM Plex Mono',monospace;
+  --font-sans:'Outfit',system-ui,sans-serif;
+}
+html{font-size:14px}
+body{
+  font-family:var(--font-sans);
+  background:var(--bg-root);
+  color:var(--text-primary);
+  line-height:1.5;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+/* Scanline overlay */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);
+}
+
+/* ── Auth Screen ── */
+#auth-screen{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;position:relative;
+}
+#auth-screen::before{
+  content:'';position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 600px 400px at 30% 20%,rgba(45,212,191,.06),transparent),
+    radial-gradient(ellipse 500px 500px at 70% 80%,rgba(59,130,246,.04),transparent);
+}
+.auth-container{
+  position:relative;width:100%;max-width:400px;padding:2rem;
+}
+.auth-logo{
+  font-family:var(--font-mono);font-size:1.5rem;font-weight:600;
+  color:var(--accent);letter-spacing:-.02em;margin-bottom:.25rem;
+}
+.auth-logo span{color:var(--text-muted);font-weight:400}
+.auth-subtitle{color:var(--text-secondary);font-size:.85rem;margin-bottom:2rem}
+.auth-box{
+  background:var(--bg-surface);border:1px solid var(--border);padding:2rem;
+}
+.auth-tabs{display:flex;gap:0;margin-bottom:1.5rem;border-bottom:1px solid var(--border)}
+.auth-tab{
+  flex:1;padding:.6rem 0;text-align:center;cursor:pointer;
+  color:var(--text-secondary);font-size:.85rem;font-weight:500;
+  border-bottom:2px solid transparent;transition:all .2s;
+  background:none;border-top:none;border-left:none;border-right:none;
+  font-family:var(--font-sans);
+}
+.auth-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.auth-tab:hover{color:var(--text-primary)}
+.form-group{margin-bottom:1rem}
+.form-label{
+  display:block;font-size:.75rem;font-weight:500;
+  color:var(--text-secondary);margin-bottom:.35rem;
+  text-transform:uppercase;letter-spacing:.05em;
+  font-family:var(--font-mono);
+}
+.form-input{
+  width:100%;padding:.6rem .75rem;
+  background:var(--bg-input);border:1px solid var(--border);
+  color:var(--text-primary);font-family:var(--font-mono);font-size:.85rem;
+  outline:none;transition:border-color .2s;
+}
+.form-input:focus{border-color:var(--border-focus)}
+.form-input::placeholder{color:var(--text-muted)}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+  padding:.6rem 1.2rem;font-family:var(--font-sans);font-size:.85rem;font-weight:500;
+  cursor:pointer;transition:all .15s;border:1px solid transparent;
+  text-decoration:none;
+}
+.btn-primary{
+  background:var(--accent);color:var(--bg-root);border-color:var(--accent);
+  width:100%;
+}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-secondary{
+  background:transparent;color:var(--text-secondary);border-color:var(--border);
+}
+.btn-secondary:hover{color:var(--text-primary);border-color:var(--text-muted)}
+.btn-danger{background:var(--red-dim);color:var(--red);border-color:rgba(239,68,68,.3)}
+.btn-danger:hover{background:rgba(239,68,68,.2)}
+.btn-sm{padding:.35rem .75rem;font-size:.8rem}
+.auth-error{
+  color:var(--red);font-size:.8rem;margin-top:.75rem;
+  font-family:var(--font-mono);display:none;
+}
+.auth-error.visible{display:block}
+
+/* ── App Layout ── */
+#app-screen{display:none;min-height:100vh}
+.app-header{
+  position:fixed;top:0;left:0;right:0;height:var(--header-h);
+  background:var(--bg-surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 1.5rem;z-index:100;
+}
+.header-left{display:flex;align-items:center;gap:1rem}
+.header-logo{
+  font-family:var(--font-mono);font-size:1rem;font-weight:600;
+  color:var(--accent);
+}
+.header-logo span{color:var(--text-muted);font-weight:400}
+.header-status{
+  font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);
+  display:flex;align-items:center;gap:.4rem;
+}
+.header-status::before{
+  content:'';width:6px;height:6px;border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 6px var(--green);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.header-right{display:flex;align-items:center;gap:1rem}
+.header-email{font-size:.8rem;color:var(--text-secondary);font-family:var(--font-mono)}
+.btn-logout{
+  background:none;border:1px solid var(--border);color:var(--text-secondary);
+  padding:.3rem .7rem;font-size:.75rem;cursor:pointer;font-family:var(--font-mono);
+  transition:all .15s;
+}
+.btn-logout:hover{color:var(--text-primary);border-color:var(--text-muted)}
+
+.sidebar{
+  position:fixed;top:var(--header-h);left:0;bottom:0;
+  width:var(--sidebar-w);background:var(--bg-surface);
+  border-right:1px solid var(--border);padding:1rem 0;
+  overflow-y:auto;z-index:90;
+}
+.sidebar-section{padding:0 1rem;margin-bottom:1.5rem}
+.sidebar-label{
+  font-size:.65rem;font-weight:600;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:.1em;
+  margin-bottom:.5rem;padding:0 .75rem;
+  font-family:var(--font-mono);
+}
+.nav-item{
+  display:flex;align-items:center;gap:.65rem;
+  padding:.55rem .75rem;cursor:pointer;
+  color:var(--text-secondary);font-size:.85rem;font-weight:400;
+  transition:all .15s;border:none;background:none;width:100%;
+  text-align:left;font-family:var(--font-sans);
+}
+.nav-item:hover{color:var(--text-primary);background:rgba(255,255,255,.03)}
+.nav-item.active{color:var(--accent);background:var(--accent-dim)}
+.nav-icon{width:16px;height:16px;opacity:.7;flex-shrink:0}
+.nav-item.active .nav-icon{opacity:1}
+
+.main-content{
+  margin-left:var(--sidebar-w);margin-top:var(--header-h);
+  padding:1.5rem 2rem;min-height:calc(100vh - var(--header-h));
+}
+
+/* ── Page Headers ── */
+.page-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:1.5rem;flex-wrap:wrap;gap:.75rem;
+}
+.page-title{font-size:1.25rem;font-weight:600;letter-spacing:-.01em}
+.page-desc{color:var(--text-secondary);font-size:.85rem;margin-top:.15rem}
+
+/* ── Cards / Panels ── */
+.panel{
+  background:var(--bg-surface);border:1px solid var(--border);
+  margin-bottom:1rem;
+}
+.panel-header{
+  padding:.75rem 1rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.panel-title{font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-mono);color:var(--text-secondary)}
+.panel-body{padding:1rem}
+
+/* ── Tables ── */
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{
+  text-align:left;padding:.6rem 1rem;
+  font-size:.7rem;font-weight:600;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--text-muted);
+  border-bottom:1px solid var(--border);font-family:var(--font-mono);
+}
+.data-table td{
+  padding:.65rem 1rem;border-bottom:1px solid var(--border);
+  font-size:.85rem;
+}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:rgba(255,255,255,.02)}
+.mono{font-family:var(--font-mono);font-size:.8rem}
+
+/* ── Status Indicators ── */
+.status-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  margin-right:.4rem;vertical-align:middle;
+}
+.status-dot.online{background:var(--green);box-shadow:0 0 6px var(--green)}
+.status-dot.offline{background:var(--text-muted)}
+.status-text{font-size:.8rem}
+.status-text.online{color:var(--green)}
+.status-text.offline{color:var(--text-muted)}
+
+/* ── Quality Score ── */
+.quality-score{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:42px;height:28px;font-family:var(--font-mono);
+  font-size:.8rem;font-weight:600;
+}
+.quality-score.good{background:var(--green-dim);color:var(--green)}
+.quality-score.fair{background:var(--amber-dim);color:var(--amber)}
+.quality-score.poor{background:var(--red-dim);color:var(--red)}
+
+.conn-badge{
+  display:inline-block;padding:.15rem .5rem;font-size:.7rem;
+  font-family:var(--font-mono);text-transform:uppercase;
+}
+.conn-badge.direct{background:var(--green-dim);color:var(--green)}
+.conn-badge.relay{background:var(--amber-dim);color:var(--amber)}
+
+/* ── Stat Cards ── */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.75rem;margin-bottom:1.5rem}
+.stat-card{
+  background:var(--bg-surface);border:1px solid var(--border);
+  padding:1rem 1.25rem;
+}
+.stat-label{
+  font-size:.65rem;font-weight:600;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--text-muted);font-family:var(--font-mono);
+  margin-bottom:.35rem;
+}
+.stat-value{font-size:1.5rem;font-weight:700;font-family:var(--font-mono)}
+.stat-unit{font-size:.75rem;color:var(--text-secondary);font-weight:400}
+
+/* ── Modals ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);
+  display:none;align-items:center;justify-content:center;
+  z-index:1000;backdrop-filter:blur(2px);
+}
+.modal-overlay.open{display:flex}
+.modal{
+  background:var(--bg-elevated);border:1px solid var(--border);
+  width:100%;max-width:480px;max-height:90vh;overflow-y:auto;
+}
+.modal-header{
+  padding:1rem 1.25rem;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-title{font-size:1rem;font-weight:600}
+.modal-close{
+  background:none;border:none;color:var(--text-muted);
+  cursor:pointer;font-size:1.2rem;padding:.25rem;
+  line-height:1;
+}
+.modal-close:hover{color:var(--text-primary)}
+.modal-body{padding:1.25rem}
+.modal-footer{
+  padding:1rem 1.25rem;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:.5rem;
+}
+
+/* ── API Key Display ── */
+.key-display{
+  background:var(--bg-root);border:1px solid var(--border);
+  padding:.6rem .75rem;font-family:var(--font-mono);font-size:.8rem;
+  color:var(--accent);word-break:break-all;margin-top:.5rem;
+  position:relative;
+}
+.key-display .copy-hint{
+  position:absolute;right:.5rem;top:50%;transform:translateY(-50%);
+  font-size:.65rem;color:var(--text-muted);
+}
+
+/* ── Empty States ── */
+.empty-state{
+  text-align:center;padding:3rem 1rem;color:var(--text-muted);
+}
+.empty-state-icon{font-size:2rem;margin-bottom:.5rem;opacity:.4}
+.empty-state-text{font-size:.85rem}
+
+/* ── Loading ── */
+.spinner{
+  display:inline-block;width:14px;height:14px;
+  border:2px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .6s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Toast ── */
+.toast-container{position:fixed;bottom:1.5rem;right:1.5rem;z-index:2000;display:flex;flex-direction:column;gap:.5rem}
+.toast{
+  background:var(--bg-elevated);border:1px solid var(--border);
+  padding:.65rem 1rem;font-size:.8rem;
+  display:flex;align-items:center;gap:.5rem;
+  animation:slideIn .2s ease-out;
+  max-width:360px;
+}
+.toast.error{border-color:rgba(239,68,68,.4);color:var(--red)}
+.toast.success{border-color:rgba(34,197,94,.4);color:var(--green)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:none;opacity:1}}
+
+/* ── Network Peer List ── */
+.peer-card{
+  display:flex;align-items:center;gap:1rem;
+  padding:.75rem 1rem;border-bottom:1px solid var(--border);
+}
+.peer-card:last-child{border-bottom:none}
+.peer-card:hover{background:rgba(255,255,255,.02)}
+.peer-info{flex:1;min-width:0}
+.peer-name{font-weight:500;font-size:.9rem}
+.peer-meta{font-family:var(--font-mono);font-size:.75rem;color:var(--text-secondary);margin-top:.1rem}
+
+/* ── Platform Icons ── */
+.platform-badge{
+  display:inline-block;padding:.1rem .45rem;
+  font-size:.7rem;font-family:var(--font-mono);
+  background:var(--blue-dim);color:var(--blue);
+  text-transform:uppercase;
+}
+
+/* ── Metrics Bars ── */
+.metric-bar-wrap{width:100%;max-width:120px}
+.metric-bar{height:4px;background:var(--border);position:relative;overflow:hidden}
+.metric-bar-fill{height:100%;transition:width .3s}
+
+/* ── Responsive ── */
+.mobile-toggle{display:none;background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:.25rem}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);transition:transform .2s;z-index:95}
+  .sidebar.open{transform:none}
+  .main-content{margin-left:0;padding:1rem}
+  .mobile-toggle{display:block}
+  .stat-grid{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ── Select ── */
+.form-select{
+  width:100%;padding:.6rem .75rem;
+  background:var(--bg-input);border:1px solid var(--border);
+  color:var(--text-primary);font-family:var(--font-mono);font-size:.85rem;
+  outline:none;cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%238b949e' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .75rem center;
+}
+.form-select:focus{border-color:var(--border-focus)}
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-container">
+    <div class="auth-logo">shireguard<span>.dev</span></div>
+    <div class="auth-subtitle">WireGuard P2P connectivity platform</div>
+    <div class="auth-box">
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Sign In</button>
+        <button class="auth-tab" data-tab="register">Register</button>
+      </div>
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" name="email" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary" type="submit">Sign In</button>
+        <div class="auth-error" id="login-error"></div>
+      </form>
+      <form id="register-form" style="display:none">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" name="email" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-input" type="password" name="password" placeholder="Min 8 characters" required minlength="8" autocomplete="new-password">
+        </div>
+        <button class="btn btn-primary" type="submit">Create Account</button>
+        <div class="auth-error" id="register-error"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- APP SCREEN -->
+<div id="app-screen">
+  <header class="app-header">
+    <div class="header-left">
+      <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <div class="header-logo">shireguard<span>.dev</span></div>
+      <div class="header-status">connected</div>
+    </div>
+    <div class="header-right">
+      <span class="header-email" id="user-email"></span>
+      <button class="btn-logout" onclick="logout()">logout</button>
+    </div>
+  </header>
+
+  <nav class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Manage</div>
+      <button class="nav-item active" data-page="devices">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M5 14h6" stroke="currentColor" stroke-width="1.2"/><path d="M8 12v2" stroke="currentColor" stroke-width="1.2"/></svg>
+        Devices
+      </button>
+      <button class="nav-item" data-page="networks">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="3" r="2" stroke="currentColor" stroke-width="1.2"/><circle cx="3" cy="13" r="2" stroke="currentColor" stroke-width="1.2"/><circle cx="13" cy="13" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3M5.5 11.5L7 9M10.5 11.5L9 9" stroke="currentColor" stroke-width="1.2"/></svg>
+        Networks
+      </button>
+      <button class="nav-item" data-page="metrics">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 13l3-4 3 2 4-6 2 3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        Metrics
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Settings</div>
+      <button class="nav-item" data-page="apikeys">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M10 6a3 3 0 1 0-1.8 2.75L11 11.5h2V10h1.5V8H11l-1-1" stroke="currentColor" stroke-width="1.2"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/></svg>
+        API Keys
+      </button>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <!-- DEVICES PAGE -->
+    <div class="page" id="page-devices">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Devices</div>
+          <div class="page-desc">Manage registered devices in your network</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openModal('add-device')">+ Add Device</button>
+      </div>
+      <div class="panel">
+        <table class="data-table">
+          <thead><tr>
+            <th>Name</th><th>Platform</th><th>IP Address</th><th>Status</th><th>Last Seen</th><th></th>
+          </tr></thead>
+          <tbody id="devices-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="devices-empty" style="display:none">
+          <div class="empty-state-icon">⬡</div>
+          <div class="empty-state-text">No devices registered yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NETWORKS PAGE -->
+    <div class="page" id="page-networks" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Networks</div>
+          <div class="page-desc">Virtual networks connecting your devices</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openModal('add-network')">+ New Network</button>
+      </div>
+      <div id="networks-list"></div>
+      <div class="empty-state" id="networks-empty" style="display:none">
+        <div class="empty-state-icon">◇</div>
+        <div class="empty-state-text">No networks found</div>
+      </div>
+    </div>
+
+    <!-- METRICS PAGE -->
+    <div class="page" id="page-metrics" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Metrics</div>
+          <div class="page-desc">Connection quality and performance data</div>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <label class="form-label" style="margin:0;white-space:nowrap">Network</label>
+          <select class="form-select" id="metrics-network-select" style="width:200px" onchange="loadMetricsSummary()"></select>
+        </div>
+      </div>
+      <div class="stat-grid" id="metrics-stats"></div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Peer Connections</span>
+        </div>
+        <table class="data-table">
+          <thead><tr>
+            <th>Device</th><th>Quality</th><th>Latency</th><th>Jitter</th><th>Loss</th><th>Type</th>
+          </tr></thead>
+          <tbody id="metrics-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="metrics-empty" style="display:none">
+          <div class="empty-state-icon">∿</div>
+          <div class="empty-state-text">No metrics data available</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- API KEYS PAGE -->
+    <div class="page" id="page-apikeys" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">API Keys</div>
+          <div class="page-desc">Manage programmatic access to your account</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openModal('add-apikey')">+ New Key</button>
+      </div>
+      <div class="panel">
+        <table class="data-table">
+          <thead><tr>
+            <th>Name</th><th>Prefix</th><th>Created</th><th>Last Used</th><th>Expires</th><th></th>
+          </tr></thead>
+          <tbody id="apikeys-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="apikeys-empty" style="display:none">
+          <div class="empty-state-icon">⚿</div>
+          <div class="empty-state-text">No API keys created</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-add-device">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Add Device</span>
+      <button class="modal-close" onclick="closeModals()">&times;</button>
+    </div>
+    <form id="add-device-form">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Device Name</label>
+          <input class="form-input" name="name" placeholder="my-macbook" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Platform</label>
+          <select class="form-select" name="platform" required>
+            <option value="macos">macOS</option>
+            <option value="linux">Linux</option>
+            <option value="raspberrypi">Raspberry Pi</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">WireGuard Public Key</label>
+          <input class="form-input" name="public_key" placeholder="Base64-encoded public key" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Network</label>
+          <select class="form-select" name="network_id" id="device-network-select" required></select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" type="button" onclick="closeModals()">Cancel</button>
+        <button class="btn btn-primary btn-sm" type="submit">Add Device</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-add-network">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Create Network</span>
+      <button class="modal-close" onclick="closeModals()">&times;</button>
+    </div>
+    <form id="add-network-form">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Network Name</label>
+          <input class="form-input" name="name" placeholder="home-lab" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">CIDR (optional)</label>
+          <input class="form-input" name="cidr" placeholder="10.100.0.0/24" value="10.100.0.0/24">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" type="button" onclick="closeModals()">Cancel</button>
+        <button class="btn btn-primary btn-sm" type="submit">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-add-apikey">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Create API Key</span>
+      <button class="modal-close" onclick="closeModals()">&times;</button>
+    </div>
+    <form id="add-apikey-form">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Key Name</label>
+          <input class="form-input" name="name" placeholder="ci-pipeline" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expires In (days, optional)</label>
+          <input class="form-input" type="number" name="expires_in_days" placeholder="90" min="1">
+        </div>
+        <div id="new-key-display" style="display:none">
+          <div class="form-label" style="color:var(--amber);margin-top:1rem">⚠ Copy this key now — it won't be shown again</div>
+          <div class="key-display" id="new-key-value"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" type="button" onclick="closeModals()">Close</button>
+        <button class="btn btn-primary btn-sm" type="submit" id="create-key-btn">Create Key</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+// ── State ──
+let accessToken = null;
+let refreshToken = null;
+let userEmail = null;
+let networks = [];
+let currentPage = 'devices';
+
+// ── API Client ──
+async function api(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  const data = await res.json();
+  if (res.status === 401 && refreshToken && path !== '/v1/auth/refresh') {
+    const refreshed = await tryRefresh();
+    if (refreshed) return api(method, path, body);
+    logout();
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error(data.error || `Request failed (${res.status})`);
+  }
+  return data;
+}
+
+async function tryRefresh() {
+  try {
+    const res = await fetch('/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    accessToken = data.access_token;
+    refreshToken = data.refresh_token;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ── Auth ──
+document.querySelectorAll('.auth-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const isLogin = tab.dataset.tab === 'login';
+    document.getElementById('login-form').style.display = isLogin ? '' : 'none';
+    document.getElementById('register-form').style.display = isLogin ? 'none' : '';
+  });
+});
+
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const errEl = document.getElementById('login-error');
+  errEl.classList.remove('visible');
+  try {
+    const data = await api('POST', '/v1/auth/login', {
+      email: fd.get('email'), password: fd.get('password')
+    });
+    handleAuth(data);
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.add('visible');
+  }
+});
+
+document.getElementById('register-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const errEl = document.getElementById('register-error');
+  errEl.classList.remove('visible');
+  try {
+    const data = await api('POST', '/v1/auth/register', {
+      email: fd.get('email'), password: fd.get('password')
+    });
+    handleAuth(data);
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.add('visible');
+  }
+});
+
+function handleAuth(data) {
+  accessToken = data.access_token;
+  refreshToken = data.refresh_token;
+  userEmail = data.user.email;
+  document.getElementById('user-email').textContent = userEmail;
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  loadAll();
+}
+
+function logout() {
+  accessToken = null;
+  refreshToken = null;
+  userEmail = null;
+  document.getElementById('auth-screen').style.display = '';
+  document.getElementById('app-screen').style.display = 'none';
+}
+
+// ── Navigation ──
+document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+  item.addEventListener('click', () => {
+    navigateTo(item.dataset.page);
+    document.querySelector('.sidebar').classList.remove('open');
+  });
+});
+
+function navigateTo(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');
+  document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+  document.getElementById(`page-${page}`).style.display = '';
+  if (page === 'devices') loadDevices();
+  if (page === 'networks') loadNetworks();
+  if (page === 'metrics') loadMetricsSummary();
+  if (page === 'apikeys') loadApiKeys();
+}
+
+// ── Load All ──
+async function loadAll() {
+  await loadNetworksList();
+  loadDevices();
+}
+
+async function loadNetworksList() {
+  try {
+    const data = await api('GET', '/v1/networks');
+    networks = data.networks || [];
+    populateNetworkSelects();
+  } catch { networks = []; }
+}
+
+function populateNetworkSelects() {
+  const selects = [document.getElementById('device-network-select'), document.getElementById('metrics-network-select')];
+  selects.forEach(sel => {
+    if (!sel) return;
+    sel.innerHTML = '';
+    networks.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n.id;
+      opt.textContent = `${n.name} (${n.cidr})`;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+// ── Devices ──
+async function loadDevices() {
+  const tbody = document.getElementById('devices-tbody');
+  const empty = document.getElementById('devices-empty');
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem"><span class="spinner"></span></td></tr>';
+  try {
+    const data = await api('GET', '/v1/devices');
+    const devices = data.devices || [];
+    empty.style.display = devices.length ? 'none' : '';
+    if (!devices.length) { tbody.innerHTML = ''; return; }
+    tbody.innerHTML = devices.map(d => `
+      <tr>
+        <td><strong>${esc(d.name)}</strong></td>
+        <td><span class="platform-badge">${esc(d.platform)}</span></td>
+        <td class="mono">${esc(d.assigned_ip)}</td>
+        <td>
+          <span class="status-dot ${d.online ? 'online' : 'offline'}"></span>
+          <span class="status-text ${d.online ? 'online' : 'offline'}">${d.online ? 'online' : 'offline'}</span>
+        </td>
+        <td class="mono" style="color:var(--text-secondary);font-size:.75rem">${d.last_seen_at ? timeAgo(d.last_seen_at) : '—'}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteDevice('${d.id}')">Remove</button></td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = '';
+    toast(err.message, 'error');
+  }
+}
+
+document.getElementById('add-device-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  try {
+    await api('POST', '/v1/devices', {
+      name: fd.get('name'),
+      platform: fd.get('platform'),
+      public_key: fd.get('public_key'),
+      network_id: fd.get('network_id'),
+    });
+    closeModals();
+    e.target.reset();
+    toast('Device added', 'success');
+    loadDevices();
+  } catch (err) { toast(err.message, 'error'); }
+});
+
+async function deleteDevice(id) {
+  if (!confirm('Remove this device?')) return;
+  try {
+    await api('DELETE', `/v1/devices/${id}`);
+    toast('Device removed', 'success');
+    loadDevices();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ── Networks ──
+async function loadNetworks() {
+  await loadNetworksList();
+  const container = document.getElementById('networks-list');
+  const empty = document.getElementById('networks-empty');
+  if (!networks.length) {
+    container.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  container.innerHTML = '';
+  for (const n of networks) {
+    const panel = document.createElement('div');
+    panel.className = 'panel';
+    panel.innerHTML = `
+      <div class="panel-header">
+        <div>
+          <span class="panel-title">${esc(n.name)}</span>
+          <span class="mono" style="margin-left:.75rem;color:var(--text-muted);font-size:.75rem">${esc(n.cidr)}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:.75rem">
+          <span style="font-size:.8rem;color:var(--text-secondary)">${n.device_count || 0} device${(n.device_count||0)!==1?'s':''}</span>
+          <button class="btn btn-danger btn-sm" onclick="deleteNetwork('${n.id}')">Delete</button>
+        </div>
+      </div>
+      <div class="panel-body" id="peers-${n.id}"><span class="spinner"></span></div>
+    `;
+    container.appendChild(panel);
+    loadPeers(n.id);
+  }
+}
+
+async function loadPeers(networkId) {
+  const container = document.getElementById(`peers-${networkId}`);
+  try {
+    const data = await api('GET', `/v1/networks/${networkId}/peers`);
+    const peers = data.peers || [];
+    if (!peers.length) {
+      container.innerHTML = '<div style="color:var(--text-muted);font-size:.8rem">No peers in this network</div>';
+      return;
+    }
+    container.innerHTML = peers.map(p => `
+      <div class="peer-card">
+        <span class="status-dot ${p.online ? 'online' : 'offline'}"></span>
+        <div class="peer-info">
+          <div class="peer-name">${esc(p.name)}</div>
+          <div class="peer-meta">${esc(p.assigned_ip)} · ${esc(p.platform)}${p.endpoint ? ` · ${esc(p.endpoint)}` : ''}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch { container.innerHTML = '<div style="color:var(--red);font-size:.8rem">Failed to load peers</div>'; }
+}
+
+document.getElementById('add-network-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  try {
+    await api('POST', '/v1/networks', {
+      name: fd.get('name'),
+      cidr: fd.get('cidr') || undefined,
+    });
+    closeModals();
+    e.target.reset();
+    toast('Network created', 'success');
+    loadNetworks();
+  } catch (err) { toast(err.message, 'error'); }
+});
+
+async function deleteNetwork(id) {
+  if (!confirm('Delete this network? All devices must be removed first.')) return;
+  try {
+    await api('DELETE', `/v1/networks/${id}`);
+    toast('Network deleted', 'success');
+    loadNetworks();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ── Metrics ──
+async function loadMetricsSummary() {
+  const sel = document.getElementById('metrics-network-select');
+  const networkId = sel?.value;
+  const tbody = document.getElementById('metrics-tbody');
+  const empty = document.getElementById('metrics-empty');
+  const stats = document.getElementById('metrics-stats');
+
+  if (!networkId) {
+    stats.innerHTML = '';
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem"><span class="spinner"></span></td></tr>';
+  try {
+    const data = await api('GET', `/v1/metrics/summary/${networkId}`);
+    const rows = data.summary || [];
+    empty.style.display = rows.length ? 'none' : '';
+
+    if (!rows.length) {
+      stats.innerHTML = '';
+      tbody.innerHTML = '';
+      return;
+    }
+
+    // Aggregate stats
+    const avgLatency = avg(rows, 'latency_ms');
+    const avgJitter = avg(rows, 'jitter_ms');
+    const avgLoss = avg(rows, 'packet_loss_ratio');
+    const avgQuality = avg(rows, 'quality_score');
+    const relayCount = rows.filter(r => r.connection_type === 'relay').length;
+
+    stats.innerHTML = `
+      <div class="stat-card"><div class="stat-label">Avg Quality</div><div class="stat-value" style="color:${qualityColor(avgQuality)}">${Math.round(avgQuality)}<span class="stat-unit">/100</span></div></div>
+      <div class="stat-card"><div class="stat-label">Avg Latency</div><div class="stat-value">${avgLatency.toFixed(1)}<span class="stat-unit">ms</span></div></div>
+      <div class="stat-card"><div class="stat-label">Avg Jitter</div><div class="stat-value">${avgJitter.toFixed(1)}<span class="stat-unit">ms</span></div></div>
+      <div class="stat-card"><div class="stat-label">Packet Loss</div><div class="stat-value">${(avgLoss * 100).toFixed(2)}<span class="stat-unit">%</span></div></div>
+      <div class="stat-card"><div class="stat-label">Peers</div><div class="stat-value">${rows.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Relayed</div><div class="stat-value" style="color:${relayCount ? 'var(--amber)' : 'var(--green)'}">${relayCount}</div></div>
+    `;
+
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td><strong>${esc(r.device_name)}</strong></td>
+        <td><span class="quality-score ${qualityClass(r.quality_score)}">${r.quality_score ?? '—'}</span></td>
+        <td class="mono">${r.latency_ms != null ? r.latency_ms.toFixed(1) + ' ms' : '—'}</td>
+        <td class="mono">${r.jitter_ms != null ? r.jitter_ms.toFixed(1) + ' ms' : '—'}</td>
+        <td class="mono">${r.packet_loss_ratio != null ? (r.packet_loss_ratio * 100).toFixed(2) + '%' : '—'}</td>
+        <td><span class="conn-badge ${r.connection_type || 'direct'}">${r.connection_type || 'direct'}</span></td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    stats.innerHTML = '';
+    tbody.innerHTML = '';
+    toast(err.message, 'error');
+  }
+}
+
+// ── API Keys ──
+async function loadApiKeys() {
+  const tbody = document.getElementById('apikeys-tbody');
+  const empty = document.getElementById('apikeys-empty');
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem"><span class="spinner"></span></td></tr>';
+  try {
+    const data = await api('GET', '/v1/auth/api-keys');
+    const keys = data.api_keys || [];
+    empty.style.display = keys.length ? 'none' : '';
+    if (!keys.length) { tbody.innerHTML = ''; return; }
+    tbody.innerHTML = keys.map(k => `
+      <tr>
+        <td><strong>${esc(k.name)}</strong></td>
+        <td class="mono">${esc(k.prefix)}…</td>
+        <td class="mono" style="color:var(--text-secondary);font-size:.75rem">${timeAgo(k.created_at)}</td>
+        <td class="mono" style="color:var(--text-secondary);font-size:.75rem">${k.last_used_at ? timeAgo(k.last_used_at) : 'never'}</td>
+        <td class="mono" style="color:var(--text-secondary);font-size:.75rem">${k.expires_at ? new Date(k.expires_at).toLocaleDateString() : '—'}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteApiKey('${k.id}')">Revoke</button></td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = '';
+    toast(err.message, 'error');
+  }
+}
+
+document.getElementById('add-apikey-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const createBtn = document.getElementById('create-key-btn');
+  if (createBtn.style.display === 'none') { closeModals(); return; }
+  const fd = new FormData(e.target);
+  try {
+    const data = await api('POST', '/v1/auth/api-keys', {
+      name: fd.get('name'),
+      expires_in_days: fd.get('expires_in_days') ? parseInt(fd.get('expires_in_days')) : undefined,
+    });
+    document.getElementById('new-key-value').textContent = data.key;
+    document.getElementById('new-key-display').style.display = '';
+    createBtn.style.display = 'none';
+    toast('API key created', 'success');
+    loadApiKeys();
+  } catch (err) { toast(err.message, 'error'); }
+});
+
+async function deleteApiKey(id) {
+  if (!confirm('Revoke this API key? This cannot be undone.')) return;
+  try {
+    await api('DELETE', `/v1/auth/api-keys/${id}`);
+    toast('API key revoked', 'success');
+    loadApiKeys();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ── Modals ──
+function openModal(id) {
+  closeModals();
+  if (id === 'add-apikey') {
+    document.getElementById('new-key-display').style.display = 'none';
+    document.getElementById('create-key-btn').style.display = '';
+    document.getElementById('add-apikey-form').reset();
+  }
+  document.getElementById(`modal-${id}`).classList.add('open');
+}
+
+function closeModals() {
+  document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open'));
+}
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModals();
+  });
+});
+
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+
+// ── Helpers ──
+function esc(s) {
+  if (s == null) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+function qualityClass(score) {
+  if (score == null) return '';
+  if (score >= 70) return 'good';
+  if (score >= 40) return 'fair';
+  return 'poor';
+}
+
+function qualityColor(score) {
+  if (score >= 70) return 'var(--green)';
+  if (score >= 40) return 'var(--amber)';
+  return 'var(--red)';
+}
+
+function avg(arr, key) {
+  const vals = arr.filter(r => r[key] != null).map(r => r[key]);
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+}
+
+function toast(msg, type = 'info') {
+  const container = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 200); }, 4000);
+}
+</script>
+</body>
+</html>

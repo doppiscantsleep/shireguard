@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+.wrangler/
+
+# Build output
+dist/
+bin/
+*.exe
+
+# Go
+client/shireguard
+relay/shireguard-relay
+
+# Environment
+.env
+.env.local
+.dev.vars
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test
+coverage/
+*.cover
+*.out

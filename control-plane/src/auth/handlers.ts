@@ -69,7 +69,7 @@ auth.post('/register', async (c) => {
 
   return c.json({
     user: { id: userId, email },
-    network: { id: networkId, name: 'default', cidr: '10.100.0.0/24' },
+    network: { id: networkId, name: 'default', cidr: '100.65.0.0/16' },
     access_token: accessToken,
     refresh_token: refreshToken,
   }, 201);
@@ -224,4 +224,222 @@ auth.delete('/api-keys/:id', authMiddleware, async (c) => {
   return c.json({ deleted: true });
 });
 
+// ── Apple Sign-In helpers ──
+
+function b64urlFromBytes(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function b64urlFromString(str: string): string {
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function b64urlDecode(str: string): Uint8Array {
+  const binary = atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function buildAppleClientSecret(env: Env): Promise<string> {
+  const iat = Math.floor(Date.now() / 1000);
+  const header = { alg: 'ES256', kid: env.APPLE_KEY_ID };
+  const payload = {
+    iss: env.APPLE_TEAM_ID,
+    iat,
+    exp: iat + 300,
+    aud: 'https://appleid.apple.com',
+    sub: env.APPLE_SERVICE_ID,
+  };
+
+  const headerB64 = b64urlFromString(JSON.stringify(header));
+  const payloadB64 = b64urlFromString(JSON.stringify(payload));
+  const signingInput = `${headerB64}.${payloadB64}`;
+
+  // Parse PEM private key from .p8 file (standard base64, not base64url)
+  const pemContent = env.APPLE_PRIVATE_KEY
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s/g, '');
+  const pemBinary = atob(pemContent);
+  const keyBytes = new Uint8Array(pemBinary.length);
+  for (let i = 0; i < pemBinary.length; i++) keyBytes[i] = pemBinary.charCodeAt(i);
+
+  const key = await crypto.subtle.importKey(
+    'pkcs8',
+    keyBytes,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign']
+  );
+
+  const signingData = new TextEncoder().encode(signingInput);
+  const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, signingData);
+
+  return `${signingInput}.${b64urlFromBytes(new Uint8Array(signature))}`;
+}
+
+async function verifyAppleIdToken(idToken: string): Promise<{ sub: string; email?: string }> {
+  const parts = idToken.split('.');
+  if (parts.length !== 3) throw new Error('Invalid id_token format');
+
+  const headerJson = JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')));
+  const payloadJson = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+
+  // Fetch Apple JWKS (Apple uses RSA keys for id_token signing)
+  const jwksRes = await fetch('https://appleid.apple.com/auth/keys');
+  const jwks = await jwksRes.json<{ keys: Array<JsonWebKey & { kid: string }> }>();
+
+  const jwk = jwks.keys.find((k) => k.kid === headerJson.kid);
+  if (!jwk) throw new Error('No matching key found in Apple JWKS');
+
+  const pubKey = await crypto.subtle.importKey(
+    'jwk',
+    jwk,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['verify']
+  );
+
+  const sigBytes = b64urlDecode(parts[2]);
+  const signingInput = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+
+  const valid = await crypto.subtle.verify(
+    { name: 'RSASSA-PKCS1-v1_5' },
+    pubKey,
+    sigBytes,
+    signingInput
+  );
+  if (!valid) throw new Error('Invalid Apple id_token signature');
+
+  return { sub: payloadJson.sub, email: payloadJson.email };
+}
+
+// GET /apple — initiate Apple OAuth flow
+auth.get('/apple', async (c) => {
+  const state = crypto.randomUUID();
+  await c.env.KV.put(`state:${state}`, '1', { expirationTtl: 600 });
+
+  const params = new URLSearchParams({
+    client_id: c.env.APPLE_SERVICE_ID,
+    redirect_uri: 'https://shireguard.com/v1/auth/apple/callback',
+    response_type: 'code',
+    response_mode: 'form_post',
+    scope: 'email',
+    state,
+  });
+
+  return c.redirect(`https://appleid.apple.com/auth/authorize?${params}`);
+});
+
+// POST /apple/callback — Apple posts form_post here
+auth.post('/apple/callback', async (c) => {
+  const formData = await c.req.formData();
+  const code = formData.get('code') as string;
+  const state = formData.get('state') as string;
+  const error = formData.get('error') as string | null;
+  const userParam = formData.get('user') as string | null;
+
+  // Validate state
+  const stateVal = await c.env.KV.get(`state:${state}`);
+  if (!stateVal) {
+    return c.html('<h1>Invalid or expired state</h1>', 400);
+  }
+  await c.env.KV.delete(`state:${state}`);
+
+  if (error) {
+    return c.html(`<!DOCTYPE html><html><body><h1>Sign in cancelled</h1><p>${error}</p><a href="/">Go back</a></body></html>`, 400);
+  }
+
+  // Exchange code for tokens
+  const clientSecret = await buildAppleClientSecret(c.env);
+  const tokenParams = new URLSearchParams({
+    client_id: c.env.APPLE_SERVICE_ID,
+    client_secret: clientSecret,
+    code,
+    redirect_uri: 'https://shireguard.com/v1/auth/apple/callback',
+    grant_type: 'authorization_code',
+  });
+
+  const tokenRes = await fetch('https://appleid.apple.com/auth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: tokenParams,
+  });
+
+  if (!tokenRes.ok) {
+    const errBody = await tokenRes.text();
+    console.error('Apple token exchange failed:', errBody);
+    return c.html('<h1>Authentication failed</h1><a href="/">Go back</a>', 500);
+  }
+
+  const tokenData = await tokenRes.json<{ id_token: string }>();
+  const { sub: appleSub, email: idTokenEmail } = await verifyAppleIdToken(tokenData.id_token);
+
+  // Email: prefer id_token claim, fall back to user JSON param (first sign-in only)
+  let email: string | undefined = idTokenEmail;
+  if (!email && userParam) {
+    try {
+      const userJson = JSON.parse(userParam);
+      email = userJson.email;
+    } catch { /* ignore */ }
+  }
+
+  // Look up user: first by apple_sub, then by email
+  let user = await c.env.DB.prepare(
+    'SELECT id, email, apple_sub FROM users WHERE apple_sub = ?'
+  ).bind(appleSub).first<{ id: string; email: string; apple_sub: string | null }>();
+
+  if (!user && email) {
+    const normalizedEmail = email.toLowerCase().trim();
+    user = await c.env.DB.prepare(
+      'SELECT id, email, apple_sub FROM users WHERE email = ?'
+    ).bind(normalizedEmail).first<{ id: string; email: string; apple_sub: string | null }>();
+
+    if (user && !user.apple_sub) {
+      // Link apple_sub to existing email account
+      await c.env.DB.prepare('UPDATE users SET apple_sub = ? WHERE id = ?')
+        .bind(appleSub, user.id)
+        .run();
+    }
+  }
+
+  if (!user) {
+    // Create new user
+    const userId = crypto.randomUUID();
+    const userEmail = email?.toLowerCase().trim() ?? `apple_${appleSub}@noemail.local`;
+    await c.env.DB.prepare(
+      'INSERT INTO users (id, email, password_hash, apple_sub) VALUES (?, ?, ?, ?)'
+    ).bind(userId, userEmail, crypto.randomUUID(), appleSub).run();
+
+    const networkId = crypto.randomUUID();
+    await c.env.DB.prepare('INSERT INTO networks (id, user_id, name) VALUES (?, ?, ?)')
+      .bind(networkId, userId, 'default')
+      .run();
+
+    user = { id: userId, email: userEmail, apple_sub: appleSub };
+  }
+
+  const accessToken = await createAccessToken(user.id, user.email, c.env.JWT_SECRET);
+  const refreshToken = await createRefreshToken();
+  await c.env.KV.put(`refresh:${refreshToken}`, user.id, { expirationTtl: refreshTokenTTL() });
+
+  // Return page that stores tokens in localStorage and redirects to dashboard
+  return c.html(`<!DOCTYPE html>
+<html>
+<head><title>Signing in...</title></head>
+<body>
+<script>
+localStorage.setItem('sg_access_token', ${JSON.stringify(accessToken)});
+localStorage.setItem('sg_refresh_token', ${JSON.stringify(refreshToken)});
+localStorage.setItem('sg_user_email', ${JSON.stringify(user.email)});
+window.location.replace('/');
+</script>
+</body>
+</html>`);
+});
+
 export { auth };
+

@@ -190,7 +190,7 @@ devices.post('/:id/heartbeat', async (c) => {
 
 // Helper: get next available IP in a CIDR
 async function getNextIp(db: D1Database, networkId: string, cidr: string): Promise<string | null> {
-  // Parse CIDR (e.g., 10.100.0.0/24)
+  // Parse CIDR (e.g., 100.65.0.0/16)
   const [base, prefixStr] = cidr.split('/');
   const prefix = parseInt(prefixStr);
   const parts = base.split('.').map(Number);

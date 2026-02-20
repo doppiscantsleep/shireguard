@@ -19,12 +19,12 @@ const InterfaceName = "sg0"
 type PeerConfig struct {
 	PublicKey  string
 	Endpoint  string   // ip:port
-	AllowedIPs []string // e.g. ["10.100.0.2/32"]
+	AllowedIPs []string // e.g. ["100.65.0.2/32"]
 }
 
 type TunnelConfig struct {
 	PrivateKey string
-	Address    string // e.g. "10.100.0.1/24"
+	Address    string // e.g. "100.65.0.1/16"
 	ListenPort int
 	Peers      []PeerConfig
 }
@@ -177,7 +177,7 @@ func configureInterface(address string) error {
 
 	switch runtime.GOOS {
 	case "darwin":
-		// macOS: ifconfig sg0 inet 10.100.0.1 10.100.0.1 netmask 255.255.255.0
+		// macOS: ifconfig sg0 inet 100.65.0.1 100.65.0.1 netmask 255.255.0.0
 		mask := fmt.Sprintf("%d.%d.%d.%d",
 			ipNet.Mask[0], ipNet.Mask[1], ipNet.Mask[2], ipNet.Mask[3])
 		if err := run("ifconfig", InterfaceName, "inet", ip.String(), ip.String(), "netmask", mask); err != nil {
@@ -187,7 +187,7 @@ func configureInterface(address string) error {
 		return run("route", "-n", "add", "-net", ipNet.String(), "-interface", InterfaceName)
 
 	case "linux":
-		// Linux: ip addr add 10.100.0.1/24 dev sg0 && ip link set sg0 up
+		// Linux: ip addr add 100.65.0.1/16 dev sg0 && ip link set sg0 up
 		if err := run("ip", "addr", "add", address, "dev", InterfaceName); err != nil {
 			return err
 		}

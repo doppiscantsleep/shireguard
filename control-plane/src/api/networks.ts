@@ -14,7 +14,7 @@ networks.post('/', async (c) => {
     return c.json({ error: 'Name is required' }, 400);
   }
 
-  const cidr = body.cidr || '10.100.0.0/24';
+  const cidr = body.cidr || '100.65.0.0/16';
 
   // Validate CIDR format
   if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/.test(cidr)) {

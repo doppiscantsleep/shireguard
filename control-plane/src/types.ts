@@ -4,6 +4,10 @@ export interface Env {
   SIGNALING: DurableObjectNamespace;
   JWT_SECRET: string;
   INVITE_CODE: string;
+  APPLE_TEAM_ID: string;
+  APPLE_KEY_ID: string;
+  APPLE_SERVICE_ID: string;
+  APPLE_PRIVATE_KEY: string; // contents of the .p8 file
 }
 
 export interface User {

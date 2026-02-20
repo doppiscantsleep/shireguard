@@ -26,7 +26,7 @@ CREATE TABLE networks (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  cidr TEXT NOT NULL DEFAULT '10.100.0.0/24',
+  cidr TEXT NOT NULL DEFAULT '100.65.0.0/16',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_networks_user ON networks(user_id);

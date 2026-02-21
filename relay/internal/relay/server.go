@@ -127,14 +127,16 @@ func (slot *RelaySlot) serve(conn net.PacketConn) {
 			return
 		}
 
-		if n == 17 && buf[0] == 0xFF && bytes.Equal(buf[1:17], slot.token[:]) {
-			// Keepalive: update the device's real address
+		if n == 19 && buf[0] == 0xFF && bytes.Equal(buf[3:19], slot.token[:]) {
+			// Keepalive: [0xFF][port_hi][port_lo][token 16 bytes]
+			// Use source IP + embedded WireGuard port as the forwarding address
 			udpAddr, ok := addr.(*net.UDPAddr)
 			if !ok {
 				continue
 			}
+			wgPort := int(buf[1])<<8 | int(buf[2])
 			slot.mu.Lock()
-			slot.realAddr = udpAddr
+			slot.realAddr = &net.UDPAddr{IP: udpAddr.IP, Port: wgPort}
 			slot.lastSeen = time.Now()
 			slot.mu.Unlock()
 		} else {

@@ -161,12 +161,12 @@ func (d *Daemon) setupRelay(ctx context.Context) {
 		log.Printf("storing relay endpoint failed: %v", err)
 	}
 
-	go d.runRelayKeepalive(ctx)
+	go d.runRelayKeepalive(ctx, 51820)
 }
 
 // runRelayKeepalive sends UDP keepalives to the relay every 25 seconds so the
 // relay can track this device's real address and port.
-func (d *Daemon) runRelayKeepalive(ctx context.Context) {
+func (d *Daemon) runRelayKeepalive(ctx context.Context, wgPort int) {
 	addr := fmt.Sprintf("%s:%d", d.relayHost, d.relayPort)
 	conn, err := net.Dial("udp", addr)
 	if err != nil {
@@ -175,10 +175,13 @@ func (d *Daemon) runRelayKeepalive(ctx context.Context) {
 	}
 	defer conn.Close()
 
-	// Keepalive packet: [0xFF] + 16 token bytes = 17 bytes
-	pkt := make([]byte, 17)
+	// Keepalive packet: [0xFF][port_hi][port_lo][token 16 bytes] = 19 bytes
+	// Embedding the WireGuard listen port so the relay knows where to forward packets.
+	pkt := make([]byte, 19)
 	pkt[0] = 0xFF
-	copy(pkt[1:], d.relayToken)
+	pkt[1] = byte(wgPort >> 8)
+	pkt[2] = byte(wgPort)
+	copy(pkt[3:], d.relayToken)
 
 	// Send immediately on startup
 	if _, err := conn.Write(pkt); err != nil {

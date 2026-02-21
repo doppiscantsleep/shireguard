@@ -75,7 +75,7 @@ relay-register:
 	cd control-plane && npx wrangler d1 execute shireguard-db --remote \
 	  --command "INSERT OR REPLACE INTO relays (id, name, region, host, port, public_key, auth_token, status) \
 	             VALUES (lower(hex(randomblob(16))), '$(RELAY_NAME)', '$(RELAY_REGION)', \
-	                     '$(RELAY_HOST)', 51821, '', '$(RELAY_TOKEN)', 'active')"
+	                     '$(RELAY_HOST)', 8080, '', '$(RELAY_TOKEN)', 'active')"
 
 # Meta
 dev: cp-dev

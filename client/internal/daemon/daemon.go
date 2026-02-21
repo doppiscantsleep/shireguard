@@ -67,12 +67,23 @@ func (d *Daemon) Run(ctx context.Context) error {
 		return fmt.Errorf("device not registered — run 'shireguard register' first")
 	}
 
-	// 1. Discover public endpoint via STUN
-	stunEndpoint := nat.DiscoverEndpoint()
+	// 1. Discover public endpoint via STUN, binding to WireGuard's port (51820)
+	// so the discovered external port matches what WireGuard will actually use.
+	stunEndpoint := nat.DiscoverEndpoint(51820)
 	if stunEndpoint != "" {
 		log.Printf("STUN discovered endpoint: %s", stunEndpoint)
 	} else {
 		log.Println("STUN discovery failed, proceeding without public endpoint")
+	}
+
+	// Extract the external WireGuard port for relay keepalives.
+	wgExternalPort := 51820
+	if stunEndpoint != "" {
+		if _, portStr, err := net.SplitHostPort(stunEndpoint); err == nil {
+			if p, err := strconv.Atoi(portStr); err == nil {
+				wgExternalPort = p
+			}
+		}
 	}
 
 	// 2. Fetch initial peer list
@@ -98,7 +109,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 
 	// 5. Register with relay (best-effort)
-	d.setupRelay(ctx)
+	d.setupRelay(ctx, wgExternalPort)
 
 	// 6. Run background loops
 	heartbeatTicker := time.NewTicker(heartbeatInterval)
@@ -130,7 +141,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 // setupRelay fetches relay info from the control plane, registers this device
 // with the relay server, stores the result, and starts the keepalive goroutine.
-func (d *Daemon) setupRelay(ctx context.Context) {
+func (d *Daemon) setupRelay(ctx context.Context, wgExternalPort int) {
 	relays, err := d.client.GetRelays()
 	if err != nil || len(relays) == 0 {
 		log.Printf("no relays available: %v", err)
@@ -161,7 +172,7 @@ func (d *Daemon) setupRelay(ctx context.Context) {
 		log.Printf("storing relay endpoint failed: %v", err)
 	}
 
-	go d.runRelayKeepalive(ctx, 51820)
+	go d.runRelayKeepalive(ctx, wgExternalPort)
 }
 
 // runRelayKeepalive sends UDP keepalives to the relay every 25 seconds so the

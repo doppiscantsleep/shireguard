@@ -17,7 +17,33 @@ const (
 
 // DiscoverEndpoint sends a STUN binding request to stun.l.google.com:19302
 // and returns the observed public "IP:port" string, or "" on failure.
-func DiscoverEndpoint() string {
+// It first tries to bind to localPort (e.g. 51820) so the discovered external
+// address matches WireGuard's actual UDP socket. Falls back to ephemeral port.
+func DiscoverEndpoint(localPort int) string {
+	// Try binding to the requested local port first
+	if localPort > 0 {
+		local := &net.UDPAddr{Port: localPort}
+		conn, err := net.ListenUDP("udp", local)
+		if err == nil {
+			defer conn.Close()
+			conn.SetDeadline(time.Now().Add(3 * time.Second))
+			remote, err := net.ResolveUDPAddr("udp", stunServer)
+			if err != nil {
+				return ""
+			}
+			req := makeSTUNRequest()
+			if _, err := conn.WriteTo(req, remote); err == nil {
+				resp := make([]byte, 512)
+				if n, _, err := conn.ReadFrom(resp); err == nil {
+					if ep := parseXORMappedAddress(resp[:n], req[8:20]); ep != "" {
+						return ep
+					}
+				}
+			}
+		}
+	}
+
+	// Fall back to ephemeral port
 	conn, err := net.Dial("udp", stunServer)
 	if err != nil {
 		return ""
@@ -26,17 +52,7 @@ func DiscoverEndpoint() string {
 
 	conn.SetDeadline(time.Now().Add(3 * time.Second))
 
-	// Build minimal STUN binding request (20-byte header)
-	// Message Type: 0x0001 (Binding Request)
-	// Message Length: 0x0000 (no attributes)
-	// Magic Cookie: 0x2112A442
-	// Transaction ID: 12 random bytes
-	req := make([]byte, 20)
-	binary.BigEndian.PutUint16(req[0:2], stunBindingRequest)
-	binary.BigEndian.PutUint16(req[2:4], 0) // length
-	binary.BigEndian.PutUint32(req[4:8], stunMagicCookie)
-	rand.Read(req[8:20]) // transaction ID
-
+	req := makeSTUNRequest()
 	if _, err := conn.Write(req); err != nil {
 		return ""
 	}
@@ -48,6 +64,16 @@ func DiscoverEndpoint() string {
 	}
 
 	return parseXORMappedAddress(resp[:n], req[8:20])
+}
+
+// makeSTUNRequest builds a minimal 20-byte STUN binding request.
+func makeSTUNRequest() []byte {
+	req := make([]byte, 20)
+	binary.BigEndian.PutUint16(req[0:2], stunBindingRequest)
+	binary.BigEndian.PutUint16(req[2:4], 0) // length
+	binary.BigEndian.PutUint32(req[4:8], stunMagicCookie)
+	rand.Read(req[8:20]) // transaction ID
+	return req
 }
 
 // parseXORMappedAddress extracts the XOR-MAPPED-ADDRESS from a STUN response.

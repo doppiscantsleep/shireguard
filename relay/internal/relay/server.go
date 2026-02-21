@@ -14,10 +14,14 @@ import (
 )
 
 // RelaySlot represents one registered device's relay allocation.
+// homeAddr is the registered device (set by keepalive).
+// peerAddr is whoever else is sending to this slot (set dynamically).
+// Packets from homeAddr are forwarded to peerAddr and vice versa.
 type RelaySlot struct {
 	mu       sync.Mutex
 	token    [16]byte
-	realAddr *net.UDPAddr
+	homeAddr *net.UDPAddr
+	peerAddr *net.UDPAddr
 	lastSeen time.Time
 }
 
@@ -127,22 +131,33 @@ func (slot *RelaySlot) serve(conn net.PacketConn) {
 			return
 		}
 
+		udpAddr, ok := addr.(*net.UDPAddr)
+		if !ok {
+			continue
+		}
+
 		if n == 19 && buf[0] == 0xFF && bytes.Equal(buf[3:19], slot.token[:]) {
 			// Keepalive: [0xFF][port_hi][port_lo][token 16 bytes]
-			// Use source IP + embedded WireGuard port as the forwarding address
-			udpAddr, ok := addr.(*net.UDPAddr)
-			if !ok {
-				continue
-			}
+			// Use source IP + embedded WireGuard port as homeAddr.
 			wgPort := int(buf[1])<<8 | int(buf[2])
 			slot.mu.Lock()
-			slot.realAddr = &net.UDPAddr{IP: udpAddr.IP, Port: wgPort}
+			slot.homeAddr = &net.UDPAddr{IP: udpAddr.IP, Port: wgPort}
 			slot.lastSeen = time.Now()
 			slot.mu.Unlock()
 		} else {
-			// Data packet: forward to the device's registered address
+			// Data packet: bidirectional forwarding.
+			// Packets from homeAddr → peerAddr; packets from anywhere else → homeAddr.
 			slot.mu.Lock()
-			dst := slot.realAddr
+			home := slot.homeAddr
+			peer := slot.peerAddr
+			fromHome := home != nil && udpAddr.IP.Equal(home.IP) && udpAddr.Port == home.Port
+			var dst *net.UDPAddr
+			if fromHome {
+				dst = peer
+			} else {
+				slot.peerAddr = udpAddr
+				dst = home
+			}
 			slot.mu.Unlock()
 			if dst != nil {
 				conn.WriteTo(buf[:n], dst)

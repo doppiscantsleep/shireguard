@@ -12,6 +12,12 @@ export { SignalingRoom } from './signaling/room';
 
 const app = new Hono<{ Bindings: Env }>();
 
+// Return JSON for unhandled exceptions instead of plain-text "Internal Server Error"
+app.onError((err, c) => {
+  console.error('[unhandled error]', err);
+  return c.json({ error: err.message || 'Internal server error' }, 500);
+});
+
 // CORS — restrict to production origin only.
 // The WireGuard CLI client is not a browser and does not send CORS preflight
 // requests, so locking this down does not affect CLI functionality.

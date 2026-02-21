@@ -17,7 +17,12 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-const InterfaceName = "sg0"
+func interfaceName() string {
+	if runtime.GOOS == "darwin" {
+		return "utun" // macOS auto-assigns the number (utun0, utun1, …)
+	}
+	return "sg0"
+}
 
 type PeerConfig struct {
 	PublicKey  string
@@ -52,9 +57,16 @@ func (t *Tunnel) Up(cfg *TunnelConfig) error {
 	}
 
 	// Create TUN device
-	tunDevice, err := tun.CreateTUN(InterfaceName, device.DefaultMTU)
+	tunDevice, err := tun.CreateTUN(interfaceName(), device.DefaultMTU)
 	if err != nil {
 		return fmt.Errorf("creating TUN device: %w", err)
+	}
+
+	// Get the actual interface name assigned by the OS (important on macOS utun)
+	ifName, err := tunDevice.Name()
+	if err != nil {
+		tunDevice.Close()
+		return fmt.Errorf("getting interface name: %w", err)
 	}
 
 	// Create WireGuard device
@@ -76,7 +88,7 @@ func (t *Tunnel) Up(cfg *TunnelConfig) error {
 	}
 
 	// Configure IP address on the interface
-	if err := configureInterface(cfg.Address); err != nil {
+	if err := configureInterface(ifName, cfg.Address); err != nil {
 		dev.Close()
 		tunDevice.Close()
 		return fmt.Errorf("configuring interface: %w", err)
@@ -172,7 +184,7 @@ func base64Decode(s string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(s)
 }
 
-func configureInterface(address string) error {
+func configureInterface(ifName, address string) error {
 	ip, ipNet, err := net.ParseCIDR(address)
 	if err != nil {
 		return fmt.Errorf("parsing address %q: %w", address, err)
@@ -180,21 +192,21 @@ func configureInterface(address string) error {
 
 	switch runtime.GOOS {
 	case "darwin":
-		// macOS: ifconfig sg0 inet 100.65.0.1 100.65.0.1 netmask 255.255.0.0
+		// macOS: ifconfig utunN inet <ip> <ip> netmask <mask>
 		mask := fmt.Sprintf("%d.%d.%d.%d",
 			ipNet.Mask[0], ipNet.Mask[1], ipNet.Mask[2], ipNet.Mask[3])
-		if err := run("ifconfig", InterfaceName, "inet", ip.String(), ip.String(), "netmask", mask); err != nil {
+		if err := run("ifconfig", ifName, "inet", ip.String(), ip.String(), "netmask", mask); err != nil {
 			return err
 		}
 		// Add route for the subnet
-		return run("route", "-n", "add", "-net", ipNet.String(), "-interface", InterfaceName)
+		return run("route", "-n", "add", "-net", ipNet.String(), "-interface", ifName)
 
 	case "linux":
-		// Linux: ip addr add 100.65.0.1/16 dev sg0 && ip link set sg0 up
-		if err := run("ip", "addr", "add", address, "dev", InterfaceName); err != nil {
+		// Linux: ip addr add <address> dev sg0 && ip link set sg0 up
+		if err := run("ip", "addr", "add", address, "dev", ifName); err != nil {
 			return err
 		}
-		return run("ip", "link", "set", InterfaceName, "up")
+		return run("ip", "link", "set", ifName, "up")
 
 	default:
 		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)

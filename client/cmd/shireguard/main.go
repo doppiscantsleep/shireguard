@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
-	"net"
+	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -46,7 +48,7 @@ func main() {
 
 	root.PersistentFlags().StringVar(&cfg.APIURL, "api-url", cfg.APIURL, "Control plane API URL")
 
-	root.AddCommand(loginCmd(), registerCmd(), upCmd(), downCmd(), statusCmd(), devicesCmd(), logoutCmd())
+	root.AddCommand(loginCmd(), registerCmd(), registerDeviceCmd(), upCmd(), downCmd(), statusCmd(), devicesCmd(), logoutCmd())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -96,51 +98,14 @@ func loginCmd() *cobra.Command {
 }
 
 func loginWithApple() error {
-	// Bind to a random free port on localhost
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return fmt.Errorf("could not start local callback server: %w", err)
+	// Generate a random 16-byte session ID
+	sessionBytes := make([]byte, 16)
+	if _, err := rand.Read(sessionBytes); err != nil {
+		return fmt.Errorf("generating session ID: %w", err)
 	}
-	port := ln.Addr().(*net.TCPAddr).Port
-	callbackURL := fmt.Sprintf("http://127.0.0.1:%d/callback", port)
+	sessionID := hex.EncodeToString(sessionBytes)
 
-	type result struct {
-		accessToken  string
-		refreshToken string
-		email        string
-		err          error
-	}
-	done := make(chan result, 1)
-
-	mux := http.NewServeMux()
-	srv := &http.Server{Handler: mux}
-
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		if errMsg := q.Get("error"); errMsg != "" {
-			fmt.Fprintf(w, `<!DOCTYPE html><html><body>
-<h2>Sign in failed</h2><p>%s</p><p>You can close this tab.</p>
-</body></html>`, errMsg)
-			done <- result{err: fmt.Errorf("apple sign-in failed: %s", errMsg)}
-			return
-		}
-		fmt.Fprint(w, `<!DOCTYPE html><html><body>
-<h2>✓ Signed in successfully</h2><p>You can close this tab and return to the terminal.</p>
-</body></html>`)
-		done <- result{
-			accessToken:  q.Get("access_token"),
-			refreshToken: q.Get("refresh_token"),
-			email:        q.Get("email"),
-		}
-	})
-
-	go srv.Serve(ln)
-	defer srv.Close()
-
-	authURL := fmt.Sprintf("%s/v1/auth/apple?cli_redirect=%s",
-		cfg.APIURL,
-		url.QueryEscape(callbackURL),
-	)
+	authURL := fmt.Sprintf("%s/v1/auth/apple?cli_session=%s", cfg.APIURL, sessionID)
 
 	fmt.Println("Opening browser for Apple Sign-In...")
 	fmt.Printf("If your browser doesn't open automatically, visit:\n  %s\n\n", authURL)
@@ -152,27 +117,64 @@ func loginWithApple() error {
 		exec.Command("xdg-open", authURL).Start()
 	}
 
+	fmt.Print("Waiting for authentication")
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	select {
-	case res := <-done:
-		if res.err != nil {
-			return res.err
+	pollURL := fmt.Sprintf("%s/v1/auth/poll?session_id=%s", cfg.APIURL, sessionID)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println()
+			return fmt.Errorf("timed out waiting for Apple Sign-In (5 minutes)")
+		case <-ticker.C:
+			fmt.Print(".")
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, pollURL, nil)
+			if err != nil {
+				continue
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				continue
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+
+			if resp.StatusCode == http.StatusAccepted {
+				continue
+			}
+			if resp.StatusCode == http.StatusOK {
+				var result struct {
+					Status       string `json:"status"`
+					AccessToken  string `json:"access_token"`
+					RefreshToken string `json:"refresh_token"`
+					Email        string `json:"email"`
+				}
+				if err := json.Unmarshal(body, &result); err != nil {
+					fmt.Println()
+					return fmt.Errorf("parsing poll response: %w", err)
+				}
+				if result.AccessToken == "" || result.RefreshToken == "" {
+					fmt.Println()
+					return fmt.Errorf("sign-in succeeded but no tokens received")
+				}
+				cfg.AccessToken = result.AccessToken
+				cfg.RefreshToken = result.RefreshToken
+				cfg.Email = result.Email
+				if err := cfg.Save(); err != nil {
+					return err
+				}
+				fmt.Printf("\nLogged in as %s\n", result.Email)
+				return nil
+			}
+			fmt.Println()
+			return fmt.Errorf("poll request failed (status %d): %s", resp.StatusCode, string(body))
 		}
-		if res.accessToken == "" || res.refreshToken == "" {
-			return fmt.Errorf("sign-in succeeded but no tokens received")
-		}
-		cfg.AccessToken = res.accessToken
-		cfg.RefreshToken = res.refreshToken
-		cfg.Email = res.email
-		if err := cfg.Save(); err != nil {
-			return err
-		}
-		fmt.Printf("Logged in as %s\n", res.email)
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("timed out waiting for Apple Sign-In (5 minutes)")
 	}
 }
 
@@ -261,6 +263,74 @@ func registerCmd() *cobra.Command {
 	cmd.Flags().StringVar(&deviceName, "name", "", "Device name (defaults to hostname)")
 	cmd.MarkFlagRequired("email")
 	cmd.MarkFlagRequired("password")
+	return cmd
+}
+
+func registerDeviceCmd() *cobra.Command {
+	var deviceName string
+	cmd := &cobra.Command{
+		Use:   "register-device",
+		Short: "Register this device with your account",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !cfg.IsLoggedIn() {
+				return fmt.Errorf("not logged in — run 'shireguard login' first")
+			}
+
+			client := newClient()
+
+			// Fetch default network
+			nets, err := client.ListNetworks()
+			if err != nil {
+				return fmt.Errorf("listing networks: %w", err)
+			}
+			if len(nets) == 0 {
+				return fmt.Errorf("no networks found")
+			}
+			networkID := nets[0].ID
+
+			// Generate WireGuard keys
+			privKey, pubKey, err := wg.GenerateKeyPair()
+			if err != nil {
+				return fmt.Errorf("generating keys: %w", err)
+			}
+
+			platform := runtime.GOOS
+			if platform == "darwin" {
+				platform = "macos"
+			}
+
+			if deviceName == "" {
+				hostname, _ := os.Hostname()
+				deviceName = hostname
+			}
+
+			dev, err := client.RegisterDevice(&api.RegisterDeviceRequest{
+				Name:      deviceName,
+				Platform:  platform,
+				PublicKey: pubKey,
+				NetworkID: networkID,
+			})
+			if err != nil {
+				return fmt.Errorf("registering device: %w", err)
+			}
+
+			cfg.DeviceID = dev.ID
+			cfg.DeviceName = dev.Name
+			cfg.NetworkID = dev.NetworkID
+			cfg.PrivateKey = privKey
+			cfg.PublicKey = pubKey
+			cfg.AssignedIP = dev.AssignedIP
+
+			if err := cfg.Save(); err != nil {
+				return err
+			}
+
+			fmt.Printf("Device registered: %s (%s)\n", dev.Name, dev.AssignedIP)
+			fmt.Println("Run 'shireguard up' to start the tunnel")
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&deviceName, "name", "", "Device name (defaults to hostname)")
 	return cmd
 }
 

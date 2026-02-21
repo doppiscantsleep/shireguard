@@ -328,8 +328,10 @@ function isLocalhostURL(url: string): boolean {
 }
 
 // GET /apple — initiate Apple OAuth flow
-// Accepts optional ?cli_redirect=http://127.0.0.1:PORT/callback for CLI logins
+// Accepts optional ?cli_session=<id> for CLI polling logins
+// Accepts optional ?cli_redirect=http://127.0.0.1:PORT/callback for legacy CLI logins
 auth.get('/apple', async (c) => {
+  const cliSession = c.req.query('cli_session');
   const cliRedirect = c.req.query('cli_redirect');
 
   if (cliRedirect && !isLocalhostURL(cliRedirect)) {
@@ -337,8 +339,16 @@ auth.get('/apple', async (c) => {
   }
 
   const state = crypto.randomUUID();
-  // Store cli_redirect URL (or "web" sentinel) so the callback knows where to send tokens
-  await c.env.KV.put(`state:${state}`, cliRedirect ?? 'web', { expirationTtl: 600 });
+  // Determine state value: poll:<sessionId> | <redirectURL> | "web"
+  let stateValue: string;
+  if (cliSession) {
+    stateValue = `poll:${cliSession}`;
+  } else if (cliRedirect) {
+    stateValue = cliRedirect;
+  } else {
+    stateValue = 'web';
+  }
+  await c.env.KV.put(`state:${state}`, stateValue, { expirationTtl: 600 });
 
   const params = new URLSearchParams({
     client_id: c.env.APPLE_SERVICE_ID,
@@ -360,13 +370,14 @@ auth.post('/apple/callback', async (c) => {
   const error = formData.get('error') as string | null;
   const userParam = formData.get('user') as string | null;
 
-  // Validate state and retrieve cli_redirect (or "web" sentinel)
+  // Validate state and retrieve stateData (poll:<id> | <redirectURL> | "web")
   const stateData = await c.env.KV.get(`state:${state}`);
   if (!stateData) {
     return c.html('<h1>Invalid or expired state</h1>', 400);
   }
   await c.env.KV.delete(`state:${state}`);
-  const cliRedirect = stateData !== 'web' ? stateData : null;
+  const isPollSession = stateData.startsWith('poll:');
+  const cliRedirect = !isPollSession && stateData !== 'web' ? stateData : null;
 
   if (error) {
     return c.html(`<!DOCTYPE html><html><body><h1>Sign in cancelled</h1><p>${error}</p><a href="/">Go back</a></body></html>`, 400);
@@ -445,7 +456,25 @@ auth.post('/apple/callback', async (c) => {
   const refreshToken = await createRefreshToken();
   await c.env.KV.put(`refresh:${refreshToken}`, user.id, { expirationTtl: refreshTokenTTL() });
 
-  // CLI login: redirect to local callback server with tokens in query params
+  // Poll-based CLI login: store tokens in KV for the CLI to pick up
+  if (isPollSession) {
+    const sessionId = stateData.slice('poll:'.length);
+    await c.env.KV.put(
+      `cli_session:${sessionId}`,
+      JSON.stringify({ access_token: accessToken, refresh_token: refreshToken, email: user.email }),
+      { expirationTtl: 300 }
+    );
+    return c.html(`<!DOCTYPE html>
+<html>
+<head><title>Signed in</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:4rem">
+<h2>&#x2713; Signed in</h2>
+<p>You can close this tab and return to the terminal.</p>
+</body>
+</html>`);
+  }
+
+  // Legacy CLI login: redirect to local callback server with tokens in query params
   if (cliRedirect) {
     const params = new URLSearchParams({
       access_token: accessToken,
@@ -468,6 +497,35 @@ window.location.replace('/');
 </script>
 </body>
 </html>`);
+});
+
+// GET /poll — CLI polls this endpoint until tokens are ready
+auth.get('/poll', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const rl = await checkRateLimit(c.env.KV, ip, {
+    action: 'poll',
+    limit: 60,
+    windowSeconds: 60,
+  });
+  if (rl.limited) {
+    return c.json({ error: 'Too many poll requests. Try again later.' }, 429, {
+      'Retry-After': String(rl.retryAfter),
+    });
+  }
+
+  const sessionId = c.req.query('session_id');
+  if (!sessionId) {
+    return c.json({ error: 'session_id is required' }, 400);
+  }
+
+  const data = await c.env.KV.get(`cli_session:${sessionId}`);
+  if (!data) {
+    return c.json({ status: 'pending' }, 202);
+  }
+
+  await c.env.KV.delete(`cli_session:${sessionId}`);
+  const tokens = JSON.parse(data) as { access_token: string; refresh_token: string; email: string };
+  return c.json({ status: 'complete', ...tokens });
 });
 
 export { auth };

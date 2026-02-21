@@ -89,7 +89,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	defer d.tunnel.Down()
 
-	log.Printf("tunnel up on %s with IP %s", wg.InterfaceName, d.cfg.AssignedIP)
+	log.Printf("tunnel up with IP %s", d.cfg.AssignedIP)
 	log.Printf("connected to %d peer(s)", len(tunnelCfg.Peers))
 
 	// 4. Send initial heartbeat with discovered endpoint

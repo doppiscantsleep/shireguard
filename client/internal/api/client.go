@@ -207,7 +207,7 @@ func (c *Client) RegisterWithRelay(relay Relay, deviceID string) (relayPort int,
 		return 0, "", err
 	}
 
-	req, err := http.NewRequest("POST", relay.Host+"/register", bytes.NewReader(reqData))
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://%s:%d/register", relay.Host, relay.Port), bytes.NewReader(reqData))
 	if err != nil {
 		return 0, "", err
 	}

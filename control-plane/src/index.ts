@@ -5,6 +5,7 @@ import { auth } from './auth/handlers';
 import { devices } from './api/devices';
 import { networks } from './api/networks';
 import { metrics } from './api/metrics';
+import { relays } from './api/relays';
 import { authMiddleware } from './auth/middleware';
 
 export { SignalingRoom } from './signaling/room';
@@ -38,6 +39,7 @@ app.route('/v1/auth', auth);
 app.route('/v1/devices', devices);
 app.route('/v1/networks', networks);
 app.route('/v1/metrics', metrics);
+app.route('/v1/relays', relays);
 
 // WebSocket signaling upgrade
 app.get('/v1/signal/:network_id', authMiddleware, async (c) => {

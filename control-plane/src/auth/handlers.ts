@@ -57,8 +57,8 @@ auth.post('/register', async (c) => {
 
   // Create default network
   const networkId = crypto.randomUUID();
-  await c.env.DB.prepare('INSERT INTO networks (id, user_id, name) VALUES (?, ?, ?)')
-    .bind(networkId, userId, 'default')
+  await c.env.DB.prepare('INSERT INTO networks (id, user_id, name, cidr) VALUES (?, ?, ?, ?)')
+    .bind(networkId, userId, 'default', '100.65.0.0/16')
     .run();
 
   const accessToken = await createAccessToken(userId, email, c.env.JWT_SECRET);
@@ -415,8 +415,8 @@ auth.post('/apple/callback', async (c) => {
     ).bind(userId, userEmail, crypto.randomUUID(), appleSub).run();
 
     const networkId = crypto.randomUUID();
-    await c.env.DB.prepare('INSERT INTO networks (id, user_id, name) VALUES (?, ?, ?)')
-      .bind(networkId, userId, 'default')
+    await c.env.DB.prepare('INSERT INTO networks (id, user_id, name, cidr) VALUES (?, ?, ?, ?)')
+      .bind(networkId, userId, 'default', '100.65.0.0/16')
       .run();
 
     user = { id: userId, email: userEmail, apple_sub: appleSub };

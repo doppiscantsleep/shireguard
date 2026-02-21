@@ -1,3 +1,3 @@
-module github.com/alanshireguard/shireguard/relay
+module github.com/shireguard/relay
 
-go 1.23
+go 1.22

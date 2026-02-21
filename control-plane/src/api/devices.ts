@@ -218,4 +218,28 @@ async function getNextIp(db: D1Database, networkId: string, cidr: string): Promi
   return null;
 }
 
+// POST /devices/:id/relay-endpoint — store relay_host + relay_port for a device
+devices.post('/:id/relay-endpoint', async (c) => {
+  const userId = c.get('userId');
+  const deviceId = c.req.param('id');
+
+  const body = await c.req.json<{ relay_host: string; relay_port: number }>();
+
+  if (!body.relay_host || !body.relay_port) {
+    return c.json({ error: 'relay_host and relay_port are required' }, 400);
+  }
+
+  const result = await c.env.DB.prepare(
+    'UPDATE devices SET relay_host = ?, relay_port = ? WHERE id = ? AND user_id = ?'
+  )
+    .bind(body.relay_host, body.relay_port, deviceId, userId)
+    .run();
+
+  if (!result.meta.changes) {
+    return c.json({ error: 'Device not found' }, 404);
+  }
+
+  return c.json({ updated: true });
+});
+
 export { devices };

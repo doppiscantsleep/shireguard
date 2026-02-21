@@ -1,0 +1,37 @@
+[Unit]
+Description=Shireguard Relay Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=shireguard-relay
+Group=shireguard-relay
+
+# Configuration lives in /etc/shireguard-relay (key=value, not sourced as shell)
+EnvironmentFile=/etc/shireguard-relay
+
+ExecStart=/usr/local/bin/shireguard-relay \
+  --host    ${RELAY_HOST} \
+  --token   ${RELAY_TOKEN} \
+  --port    ${RELAY_HTTP_PORT} \
+  --udp-base ${RELAY_UDP_BASE}
+
+Restart=on-failure
+RestartSec=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=shireguard-relay
+
+# Security — relay only needs raw UDP sockets
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

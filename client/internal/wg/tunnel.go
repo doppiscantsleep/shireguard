@@ -2,12 +2,15 @@ package wg
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
@@ -204,4 +207,105 @@ func run(name string, args ...string) error {
 		return fmt.Errorf("%s %v: %s: %w", name, args, string(out), err)
 	}
 	return nil
+}
+
+// PeerStat holds per-peer statistics read from the WireGuard IPC.
+type PeerStat struct {
+	LastHandshakeTime time.Time
+	Endpoint          string
+}
+
+// GetPeerStats returns a map of base64 public key → PeerStat by reading
+// the WireGuard UAPI state. Returns an error if the tunnel is not up.
+func (t *Tunnel) GetPeerStats() (map[string]PeerStat, error) {
+	t.mu.Lock()
+	dev := t.device
+	up := t.up
+	t.mu.Unlock()
+
+	if !up || dev == nil {
+		return nil, fmt.Errorf("tunnel not up")
+	}
+
+	var buf strings.Builder
+	if err := dev.IpcGetOperation(&buf); err != nil {
+		return nil, fmt.Errorf("ipc get: %w", err)
+	}
+
+	return parsePeerStats(buf.String()), nil
+}
+
+// UpdatePeerEndpoint updates the endpoint for a single peer identified by
+// its base64 public key without affecting other peer settings.
+func (t *Tunnel) UpdatePeerEndpoint(pubKey, endpoint string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if !t.up || t.device == nil {
+		return fmt.Errorf("tunnel not up")
+	}
+
+	ipc := fmt.Sprintf("public_key=%s\nendpoint=%s\n", hexKey(pubKey), endpoint)
+	return t.device.IpcSet(ipc)
+}
+
+// parsePeerStats parses WireGuard UAPI GET output into a map keyed by
+// base64-encoded public key.
+func parsePeerStats(ipcOutput string) map[string]PeerStat {
+	stats := make(map[string]PeerStat)
+
+	var currentHex string
+	var currentStat PeerStat
+	inPeer := false
+
+	for _, line := range strings.Split(ipcOutput, "\n") {
+		line = strings.TrimSpace(line)
+		key, val, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+
+		switch key {
+		case "public_key":
+			if inPeer && currentHex != "" {
+				if b64 := hexToBase64(currentHex); b64 != "" {
+					stats[b64] = currentStat
+				}
+			}
+			currentHex = val
+			currentStat = PeerStat{}
+			inPeer = true
+
+		case "endpoint":
+			if inPeer {
+				currentStat.Endpoint = val
+			}
+
+		case "last_handshake_time_sec":
+			if inPeer {
+				sec, err := strconv.ParseInt(val, 10, 64)
+				if err == nil && sec > 0 {
+					currentStat.LastHandshakeTime = time.Unix(sec, 0)
+				}
+			}
+		}
+	}
+
+	// Save the final peer
+	if inPeer && currentHex != "" {
+		if b64 := hexToBase64(currentHex); b64 != "" {
+			stats[b64] = currentStat
+		}
+	}
+
+	return stats
+}
+
+// hexToBase64 converts a 64-char hex WireGuard key to base64.
+func hexToBase64(hexKey string) string {
+	b, err := hex.DecodeString(hexKey)
+	if err != nil || len(b) != 32 {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(b)
 }

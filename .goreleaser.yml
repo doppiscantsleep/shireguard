@@ -45,6 +45,22 @@ archives:
     formats:
       - tar.gz
 
+brews:
+  - name: shireguard
+    ids:
+      - client
+    repository:
+      owner: doppiscantsleep
+      name: homebrew-shireguard
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://shireguard.com"
+    description: "WireGuard P2P connectivity"
+    directory: Formula
+    install: |
+      bin.install "shireguard"
+    test: |
+      system "#{bin}/shireguard", "--version"
+
 checksum:
   name_template: "checksums.txt"
 

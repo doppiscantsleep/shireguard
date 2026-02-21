@@ -3,10 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"runtime"
+	"strconv"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -16,7 +23,12 @@ import (
 	"github.com/shireguard/shireguard/internal/wg"
 )
 
-var cfg *config.Config
+var (
+	cfg     *config.Config
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
 
 func main() {
 	var err error
@@ -27,8 +39,9 @@ func main() {
 	}
 
 	root := &cobra.Command{
-		Use:   "shireguard",
-		Short: "Shireguard — WireGuard P2P connectivity",
+		Use:     "shireguard",
+		Short:   "Shireguard — WireGuard P2P connectivity",
+		Version: fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
 	}
 
 	root.PersistentFlags().StringVar(&cfg.APIURL, "api-url", cfg.APIURL, "Control plane API URL")
@@ -50,10 +63,17 @@ func newClient() *api.Client {
 
 func loginCmd() *cobra.Command {
 	var email, password string
+	var useApple bool
 	cmd := &cobra.Command{
 		Use:   "login",
 		Short: "Log in to your Shireguard account",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if useApple {
+				return loginWithApple()
+			}
+			if email == "" || password == "" {
+				return fmt.Errorf("--email and --password are required (or use --apple)")
+			}
 			client := api.New(cfg.APIURL, "", "", nil)
 			resp, err := client.Login(email, password)
 			if err != nil {
@@ -71,9 +91,89 @@ func loginCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&email, "email", "", "Account email")
 	cmd.Flags().StringVar(&password, "password", "", "Account password")
-	cmd.MarkFlagRequired("email")
-	cmd.MarkFlagRequired("password")
+	cmd.Flags().BoolVar(&useApple, "apple", false, "Sign in with Apple (opens browser)")
 	return cmd
+}
+
+func loginWithApple() error {
+	// Bind to a random free port on localhost
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return fmt.Errorf("could not start local callback server: %w", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	callbackURL := fmt.Sprintf("http://127.0.0.1:%d/callback", port)
+
+	type result struct {
+		accessToken  string
+		refreshToken string
+		email        string
+		err          error
+	}
+	done := make(chan result, 1)
+
+	mux := http.NewServeMux()
+	srv := &http.Server{Handler: mux}
+
+	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if errMsg := q.Get("error"); errMsg != "" {
+			fmt.Fprintf(w, `<!DOCTYPE html><html><body>
+<h2>Sign in failed</h2><p>%s</p><p>You can close this tab.</p>
+</body></html>`, errMsg)
+			done <- result{err: fmt.Errorf("apple sign-in failed: %s", errMsg)}
+			return
+		}
+		fmt.Fprint(w, `<!DOCTYPE html><html><body>
+<h2>✓ Signed in successfully</h2><p>You can close this tab and return to the terminal.</p>
+</body></html>`)
+		done <- result{
+			accessToken:  q.Get("access_token"),
+			refreshToken: q.Get("refresh_token"),
+			email:        q.Get("email"),
+		}
+	})
+
+	go srv.Serve(ln)
+	defer srv.Close()
+
+	authURL := fmt.Sprintf("%s/v1/auth/apple?cli_redirect=%s",
+		cfg.APIURL,
+		url.QueryEscape(callbackURL),
+	)
+
+	fmt.Println("Opening browser for Apple Sign-In...")
+	fmt.Printf("If your browser doesn't open automatically, visit:\n  %s\n\n", authURL)
+
+	switch runtime.GOOS {
+	case "darwin":
+		exec.Command("open", authURL).Start()
+	case "linux":
+		exec.Command("xdg-open", authURL).Start()
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	select {
+	case res := <-done:
+		if res.err != nil {
+			return res.err
+		}
+		if res.accessToken == "" || res.refreshToken == "" {
+			return fmt.Errorf("sign-in succeeded but no tokens received")
+		}
+		cfg.AccessToken = res.accessToken
+		cfg.RefreshToken = res.refreshToken
+		cfg.Email = res.email
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		fmt.Printf("Logged in as %s\n", res.email)
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("timed out waiting for Apple Sign-In (5 minutes)")
+	}
 }
 
 func registerCmd() *cobra.Command {
@@ -176,6 +276,12 @@ func upCmd() *cobra.Command {
 				return fmt.Errorf("device not registered — run 'shireguard register' first")
 			}
 
+			// Write pidfile so 'shireguard down' can signal this process
+			if pidPath, err := config.PidFile(); err == nil {
+				_ = os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0600)
+				defer os.Remove(pidPath)
+			}
+
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
@@ -199,10 +305,54 @@ func downCmd() *cobra.Command {
 		Use:   "down",
 		Short: "Stop the WireGuard tunnel",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// For now, 'down' just signals the running daemon via SIGTERM.
-			// In a full implementation, this would communicate via a socket.
-			fmt.Println("Send SIGTERM to the running shireguard process, or press Ctrl+C")
-			return nil
+			pidPath, err := config.PidFile()
+			if err != nil {
+				return err
+			}
+
+			data, err := os.ReadFile(pidPath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return fmt.Errorf("shireguard is not running")
+				}
+				return err
+			}
+
+			pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+			if err != nil {
+				return fmt.Errorf("invalid pidfile: %v", err)
+			}
+
+			proc, err := os.FindProcess(pid)
+			if err != nil {
+				_ = os.Remove(pidPath)
+				return fmt.Errorf("process not found: %v", err)
+			}
+
+			// Check the process is actually alive before signalling
+			if err := proc.Signal(syscall.Signal(0)); err != nil {
+				_ = os.Remove(pidPath)
+				return fmt.Errorf("shireguard is not running (stale pidfile removed)")
+			}
+
+			if err := proc.Signal(syscall.SIGTERM); err != nil {
+				return fmt.Errorf("failed to stop process: %v", err)
+			}
+
+			fmt.Printf("Stopping shireguard (pid %d)...", pid)
+
+			// Wait up to 10s for the process to exit
+			deadline := time.Now().Add(10 * time.Second)
+			for time.Now().Before(deadline) {
+				time.Sleep(200 * time.Millisecond)
+				if err := proc.Signal(syscall.Signal(0)); err != nil {
+					fmt.Println(" done")
+					return nil
+				}
+				fmt.Print(".")
+			}
+
+			return fmt.Errorf("timed out waiting for shireguard to stop")
 		},
 	}
 }

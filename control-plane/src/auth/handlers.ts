@@ -317,10 +317,28 @@ async function verifyAppleIdToken(idToken: string): Promise<{ sub: string; email
   return { sub: payloadJson.sub, email: payloadJson.email };
 }
 
+// Only allow localhost CLI redirect URIs (prevents open redirect abuse)
+function isLocalhostURL(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' && (u.hostname === '127.0.0.1' || u.hostname === 'localhost');
+  } catch {
+    return false;
+  }
+}
+
 // GET /apple — initiate Apple OAuth flow
+// Accepts optional ?cli_redirect=http://127.0.0.1:PORT/callback for CLI logins
 auth.get('/apple', async (c) => {
+  const cliRedirect = c.req.query('cli_redirect');
+
+  if (cliRedirect && !isLocalhostURL(cliRedirect)) {
+    return c.json({ error: 'Invalid cli_redirect: must be a localhost URL' }, 400);
+  }
+
   const state = crypto.randomUUID();
-  await c.env.KV.put(`state:${state}`, '1', { expirationTtl: 600 });
+  // Store cli_redirect URL (or "web" sentinel) so the callback knows where to send tokens
+  await c.env.KV.put(`state:${state}`, cliRedirect ?? 'web', { expirationTtl: 600 });
 
   const params = new URLSearchParams({
     client_id: c.env.APPLE_SERVICE_ID,
@@ -342,12 +360,13 @@ auth.post('/apple/callback', async (c) => {
   const error = formData.get('error') as string | null;
   const userParam = formData.get('user') as string | null;
 
-  // Validate state
-  const stateVal = await c.env.KV.get(`state:${state}`);
-  if (!stateVal) {
+  // Validate state and retrieve cli_redirect (or "web" sentinel)
+  const stateData = await c.env.KV.get(`state:${state}`);
+  if (!stateData) {
     return c.html('<h1>Invalid or expired state</h1>', 400);
   }
   await c.env.KV.delete(`state:${state}`);
+  const cliRedirect = stateData !== 'web' ? stateData : null;
 
   if (error) {
     return c.html(`<!DOCTYPE html><html><body><h1>Sign in cancelled</h1><p>${error}</p><a href="/">Go back</a></body></html>`, 400);
@@ -426,7 +445,17 @@ auth.post('/apple/callback', async (c) => {
   const refreshToken = await createRefreshToken();
   await c.env.KV.put(`refresh:${refreshToken}`, user.id, { expirationTtl: refreshTokenTTL() });
 
-  // Return page that stores tokens in localStorage and redirects to dashboard
+  // CLI login: redirect to local callback server with tokens in query params
+  if (cliRedirect) {
+    const params = new URLSearchParams({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      email: user.email,
+    });
+    return c.redirect(`${cliRedirect}?${params}`);
+  }
+
+  // Web login: store tokens in localStorage and redirect to dashboard
   return c.html(`<!DOCTYPE html>
 <html>
 <head><title>Signing in...</title></head>

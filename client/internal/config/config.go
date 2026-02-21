@@ -33,6 +33,14 @@ func Dir() (string, error) {
 	return filepath.Join(home, configDir), nil
 }
 
+func PidFile() (string, error) {
+	dir, err := Dir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "shireguard.pid"), nil
+}
+
 func Load() (*Config, error) {
 	dir, err := Dir()
 	if err != nil {

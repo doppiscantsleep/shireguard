@@ -8,12 +8,24 @@ import (
 	"github.com/shireguard/relay/internal/relay"
 )
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
+	showVersion := flag.Bool("version", false, "Print version and exit")
 	port := flag.Int("port", 8080, "HTTP port for registration/health endpoints")
 	udpBase := flag.Int("udp-base", 51821, "Base UDP port for relay slots")
 	token := flag.String("token", "", "Shared secret for relay registration auth")
 	host := flag.String("host", "", "Public hostname or IP of this relay server")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("shireguard-relay %s (commit %s, built %s)\n", version, commit, date)
+		return
+	}
 
 	if *token == "" {
 		log.Fatal("--token flag is required")

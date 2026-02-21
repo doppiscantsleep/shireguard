@@ -241,11 +241,10 @@ func (d *Daemon) checkConnectivity() {
 		d.mu.RUnlock()
 
 		if noHandshake && !usingRelay && d.relayHost != "" {
-			// No recent handshake → switch to relay
-			if peer.RelayHost == "" || peer.RelayPort == 0 {
-				continue // peer has no relay endpoint registered yet
-			}
-			relayEndpoint := peer.RelayHost + ":" + strconv.Itoa(peer.RelayPort)
+			// No recent handshake → switch to relay.
+			// Use OWN relay port (not peer's) so both sides punch NAT holes
+			// to the same relay port, allowing the relay to reach both.
+			relayEndpoint := d.relayHost + ":" + strconv.Itoa(d.relayPort)
 			if err := d.tunnel.UpdatePeerEndpoint(pubKey, relayEndpoint); err != nil {
 				log.Printf("switch to relay for %s: %v", pubKey[:8], err)
 				continue
@@ -308,8 +307,8 @@ func (d *Daemon) syncPeers() {
 			AllowedIPs: []string{p.AssignedIP + "/32"},
 		}
 		// Preserve relay endpoint if currently active for this peer
-		if usingRelaySnapshot[p.PublicKey] && p.RelayHost != "" && p.RelayPort != 0 {
-			pc.Endpoint = p.RelayHost + ":" + strconv.Itoa(p.RelayPort)
+		if usingRelaySnapshot[p.PublicKey] && d.relayHost != "" && d.relayPort != 0 {
+			pc.Endpoint = d.relayHost + ":" + strconv.Itoa(d.relayPort)
 		} else if p.Endpoint != nil {
 			pc.Endpoint = *p.Endpoint
 		}

@@ -242,9 +242,12 @@ func (d *Daemon) checkConnectivity() {
 
 		if noHandshake && !usingRelay && d.relayHost != "" {
 			// No recent handshake → switch to relay.
-			// Use OWN relay port (not peer's) so both sides punch NAT holes
-			// to the same relay port, allowing the relay to reach both.
-			relayEndpoint := d.relayHost + ":" + strconv.Itoa(d.relayPort)
+			// Both devices must use the same relay port so each has a NAT hole
+			// for it. Use the relay port of whichever device has the lower IP.
+			if peer.RelayHost == "" || peer.RelayPort == 0 {
+				continue // peer hasn't registered with relay yet
+			}
+			relayEndpoint := d.sharedRelayEndpoint(peer)
 			if err := d.tunnel.UpdatePeerEndpoint(pubKey, relayEndpoint); err != nil {
 				log.Printf("switch to relay for %s: %v", pubKey[:8], err)
 				continue
@@ -308,7 +311,7 @@ func (d *Daemon) syncPeers() {
 		}
 		// Preserve relay endpoint if currently active for this peer
 		if usingRelaySnapshot[p.PublicKey] && d.relayHost != "" && d.relayPort != 0 {
-			pc.Endpoint = d.relayHost + ":" + strconv.Itoa(d.relayPort)
+			pc.Endpoint = d.sharedRelayEndpoint(p)
 		} else if p.Endpoint != nil {
 			pc.Endpoint = *p.Endpoint
 		}
@@ -329,6 +332,35 @@ func (d *Daemon) storePeers(peers []api.Peer) {
 		}
 		d.peersByKey[p.PublicKey] = p
 	}
+}
+
+// sharedRelayEndpoint returns the relay endpoint both this device and the peer
+// should use for WireGuard traffic. Both devices must send to the same relay
+// port so each punches a NAT hole allowing the relay to reach them back.
+// We deterministically pick the relay port of the device with the lower IP.
+func (d *Daemon) sharedRelayEndpoint(peer api.Peer) string {
+	myIP := net.ParseIP(d.cfg.AssignedIP)
+	peerIP := net.ParseIP(peer.AssignedIP)
+	if netIPLess(myIP, peerIP) {
+		// My IP is lower — use my relay port
+		return d.relayHost + ":" + strconv.Itoa(d.relayPort)
+	}
+	// Peer's IP is lower — use peer's relay port
+	return peer.RelayHost + ":" + strconv.Itoa(peer.RelayPort)
+}
+
+// netIPLess returns true if a < b (IPv4 comparison).
+func netIPLess(a, b net.IP) bool {
+	a4, b4 := a.To4(), b.To4()
+	if a4 == nil || b4 == nil {
+		return false
+	}
+	for i := 0; i < 4; i++ {
+		if a4[i] != b4[i] {
+			return a4[i] < b4[i]
+		}
+	}
+	return false
 }
 
 func (d *Daemon) buildTunnelConfig(peers []api.Peer) *wg.TunnelConfig {

@@ -8,12 +8,18 @@ export interface Env {
   APPLE_KEY_ID: string;
   APPLE_SERVICE_ID: string;
   APPLE_PRIVATE_KEY: string; // contents of the .p8 file
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  GITHUB_CLIENT_ID: string;
+  GITHUB_CLIENT_SECRET: string;
+  DISCORD_WEBHOOK_URL: string;
 }
 
 export interface User {
   id: string;
   email: string;
-  password_hash: string;
+  apple_sub: string | null;
+  google_sub: string | null;
   created_at: string;
   updated_at: string;
 }

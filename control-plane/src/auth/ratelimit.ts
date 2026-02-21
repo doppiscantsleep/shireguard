@@ -39,39 +39,27 @@ export async function checkRateLimit(
 
   // Sanitise the IP to avoid any path-traversal style shenanigans in KV keys.
   const safeIp = ip.replace(/[^0-9a-fA-F.:]/g, '_').slice(0, 45);
-  const counterKey = `rl:${action}:${safeIp}`;
-  const windowStartKey = `rl:${action}:${safeIp}:ws`;
 
-  // Read the current counter value (may be null on first request).
+  // Use epoch-based key names so every write carries the full TTL.
+  // Each epoch maps to one fixed window, so the counter key naturally becomes
+  // irrelevant once the epoch advances — no separate window-start key needed.
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const epoch = Math.floor(nowSeconds / windowSeconds);
+  const counterKey = `rl:${action}:${safeIp}:${epoch}`;
+
+  // Seconds remaining until the epoch boundary (used for Retry-After).
+  const retryAfter = windowSeconds - (nowSeconds % windowSeconds);
+
   const raw = await kv.get(counterKey);
   const count = raw !== null ? parseInt(raw, 10) : 0;
 
   if (count >= limit) {
-    // Determine how long until the window resets.
-    const windowStartRaw = await kv.get(windowStartKey);
-    const windowStart = windowStartRaw !== null ? parseInt(windowStartRaw, 10) : Date.now();
-    const elapsed = Math.floor((Date.now() - windowStart) / 1000);
-    const retryAfter = Math.max(1, windowSeconds - elapsed);
     return { limited: true, retryAfter };
   }
 
-  // Increment the counter.  On the first request also record the window-start
-  // timestamp and set TTLs so both keys expire together.
-  const newCount = count + 1;
-  if (newCount === 1) {
-    // First request in this window — set both keys with the full TTL.
-    const nowMs = Date.now().toString();
-    await Promise.all([
-      kv.put(counterKey, String(newCount), { expirationTtl: windowSeconds }),
-      kv.put(windowStartKey, nowMs, { expirationTtl: windowSeconds }),
-    ]);
-  } else {
-    // Subsequent request — only update the counter; the TTL on the key is
-    // already ticking down from when the window opened.  We cannot extend or
-    // read the remaining TTL via the Workers KV API, so we write without a
-    // TTL override and rely on the original expiration.
-    await kv.put(counterKey, String(newCount));
-  }
+  // Write with a TTL of two windows so old epoch keys get cleaned up by KV
+  // even if the counter never reaches the limit.
+  await kv.put(counterKey, String(count + 1), { expirationTtl: windowSeconds * 2 });
 
   return { limited: false, retryAfter: 0 };
 }

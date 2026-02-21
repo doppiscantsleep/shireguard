@@ -104,16 +104,6 @@ body{
   background:var(--bg-surface);border:1px solid var(--border);
   padding:2rem;border-radius:var(--radius);
 }
-.auth-tabs{display:flex;gap:0;margin-bottom:1.5rem;border-bottom:1px solid var(--border)}
-.auth-tab{
-  flex:1;padding:.6rem 0;text-align:center;cursor:pointer;
-  color:var(--text-secondary);font-size:.85rem;font-weight:600;
-  border-bottom:2px solid transparent;transition:all .2s;
-  background:none;border-top:none;border-left:none;border-right:none;
-  font-family:var(--font-sans);
-}
-.auth-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-.auth-tab:hover{color:var(--text-primary)}
 .form-group{margin-bottom:1rem}
 .form-label{
   display:block;font-size:.75rem;font-weight:600;
@@ -449,17 +439,108 @@ body{
 }
 .auth-divider::before{left:0}
 .auth-divider::after{right:0}
-.btn-apple{
+.btn-apple,.btn-google{
   display:flex;align-items:center;justify-content:center;gap:.6rem;
   width:100%;padding:.65rem 1.2rem;
-  background:#000;color:#fff;border:1px solid #333;
   font-family:var(--font-sans);font-size:.85rem;font-weight:600;
   cursor:pointer;text-decoration:none;transition:background .15s;
   border-radius:var(--radius);
 }
+.btn-apple{
+  background:#000;color:#fff;border:1px solid #333;
+  margin-bottom:.6rem;
+}
 .btn-apple:hover{background:#1a1a1a}
 [data-theme="light"] .btn-apple{background:#fff;color:#1a1a1a;border-color:var(--border)}
 [data-theme="light"] .btn-apple:hover{background:var(--bg-elevated)}
+.btn-google{background:#fff;color:#3c4043;border:1px solid #dadce0;margin-bottom:.6rem}
+.btn-google:hover{background:#f8f9fa}
+[data-theme="dark"] .btn-google{background:#131314;color:#e3e3e3;border-color:#3c4043}
+[data-theme="dark"] .btn-google:hover{background:#1e1e1e}
+.btn-github{background:#24292f;color:#fff;border:1px solid #24292f}
+.btn-github:hover{background:#32383f}
+[data-theme="light"] .btn-github{background:#24292f;color:#fff}
+[data-theme="light"] .btn-github:hover{background:#32383f}
+
+/* ── Get Started Page ── */
+.setup-steps{display:flex;flex-direction:column;gap:.85rem;max-width:640px}
+.setup-step{
+  background:var(--bg-surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1.25rem 1.4rem;
+  display:flex;gap:1.1rem;align-items:flex-start;
+}
+.setup-step-num{
+  flex-shrink:0;width:26px;height:26px;border-radius:50%;
+  background:var(--accent-dim);border:1px solid var(--accent);
+  color:var(--accent);font-family:var(--font-mono);font-size:.75rem;font-weight:600;
+  display:flex;align-items:center;justify-content:center;margin-top:.1rem;
+}
+.setup-step-body{flex:1;min-width:0}
+.setup-step-title{
+  font-weight:600;font-size:.875rem;color:var(--text-primary);margin-bottom:.25rem;
+}
+.setup-step-desc{font-size:.8rem;color:var(--text-secondary);margin-bottom:.6rem;line-height:1.5}
+.setup-step-desc:last-child{margin-bottom:0}
+.code-block{
+  background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:var(--radius);padding:.55rem .8rem;
+  display:flex;align-items:center;gap:.6rem;
+}
+.code-block code{
+  flex:1;font-family:var(--font-mono);font-size:.8rem;
+  color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.btn-copy{
+  flex-shrink:0;background:none;border:none;cursor:pointer;
+  color:var(--text-muted);padding:2px;transition:color .15s;line-height:0;
+}
+.btn-copy:hover{color:var(--text-primary)}
+.btn-copy.copied{color:var(--accent)}
+
+/* ── About Page ── */
+.about-hero{
+  position:relative;overflow:hidden;
+  border:1px solid var(--border);border-radius:var(--radius);
+  min-height:290px;margin-bottom:1.25rem;
+  display:flex;align-items:center;
+}
+.about-shire-bg{
+  position:absolute;inset:0;width:100%;height:100%;
+  opacity:.6;
+}
+[data-theme="light"] .about-shire-bg{
+  opacity:.22;filter:brightness(1.8) saturate(.6) hue-rotate(15deg);
+}
+.about-hero-overlay{
+  position:absolute;inset:0;
+  background:linear-gradient(to right,var(--bg-surface) 32%,rgba(0,0,0,0) 68%);
+}
+[data-theme="light"] .about-hero-overlay{
+  background:linear-gradient(to right,var(--bg-surface) 38%,rgba(255,255,255,0) 72%);
+}
+.about-hero-content{position:relative;padding:2.25rem 2.5rem;max-width:500px}
+.about-hero-title{
+  font-family:var(--font-display);font-size:1.65rem;font-weight:700;
+  color:var(--accent);margin-bottom:.3rem;font-style:italic;
+}
+.about-hero-quote{
+  color:var(--text-muted);font-style:italic;font-size:.82rem;
+  margin-bottom:1.1rem;font-family:var(--font-display);
+}
+.about-hero-body{color:var(--text-secondary);line-height:1.8;font-size:.875rem}
+.about-cards{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.85rem;
+}
+.about-card{
+  background:var(--bg-surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1.2rem 1.4rem;
+}
+.about-card-icon{font-size:1.15rem;margin-bottom:.5rem;opacity:.85}
+.about-card-title{
+  font-family:var(--font-display);color:var(--accent);
+  font-size:.9rem;margin-bottom:.35rem;font-style:italic;
+}
+.about-card-body{color:var(--text-secondary);font-size:.8rem;line-height:1.65}
 </style>
 </head>
 <body>
@@ -476,42 +557,17 @@ body{
     <div class="auth-logo">shireguard</div>
     <div class="auth-subtitle">WireGuard tunnels for the Free Folk of the network</div>
     <div class="auth-box">
-      <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login">Sign In</button>
-        <button class="auth-tab" data-tab="register">Register</button>
-      </div>
-      <form id="login-form">
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input class="form-input" type="email" name="email" placeholder="you@example.com" required autocomplete="email">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Password</label>
-          <input class="form-input" type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
-        </div>
-        <button class="btn btn-primary" type="submit">Sign In</button>
-        <div class="auth-error" id="login-error"></div>
-      </form>
-      <form id="register-form" style="display:none">
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input class="form-input" type="email" name="email" placeholder="you@example.com" required autocomplete="email">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Password</label>
-          <input class="form-input" type="password" name="password" placeholder="Min 8 characters" required minlength="8" autocomplete="new-password">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Invite Code</label>
-          <input class="form-input" type="text" name="invite_code" placeholder="Required" required autocomplete="off">
-        </div>
-        <button class="btn btn-primary" type="submit">Create Account</button>
-        <div class="auth-error" id="register-error"></div>
-      </form>
-      <div class="auth-divider">or</div>
       <a href="/v1/auth/apple" class="btn btn-apple">
         <svg width="17" height="17" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.05 9.09c-.02-2.02 1.65-3 1.72-3.04-0.94-1.37-2.39-1.56-2.91-1.58-1.24-.13-2.43.74-3.06.74-.63 0-1.6-.72-2.63-.7-1.35.02-2.6.79-3.29 2-1.41 2.44-.36 6.06 1.01 8.04.67.97 1.47 2.06 2.52 2.02 1.01-.04 1.4-.65 2.62-.65 1.22 0 1.57.65 2.64.63 1.09-.02 1.78-.99 2.44-1.97.78-1.13 1.1-2.23 1.11-2.29-.02-.01-2.15-.83-2.17-3.2zM11.97 3.1C12.51 2.44 12.88 1.52 12.77.58c-.78.04-1.73.52-2.29 1.17-.5.57-.94 1.5-.82 2.38.87.07 1.76-.44 2.31-1.03z" fill="currentColor"/></svg>
         Sign in with Apple
+      </a>
+      <a href="/v1/auth/google" class="btn btn-google">
+        <svg width="17" height="17" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
+        Sign in with Google
+      </a>
+      <a href="/v1/auth/github" class="btn btn-github">
+        <svg width="17" height="17" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" fill="currentColor"/></svg>
+        Sign in with GitHub
       </a>
     </div>
   </div>
@@ -540,6 +596,10 @@ body{
   <nav class="sidebar">
     <div class="sidebar-section">
       <div class="sidebar-label">Manage</div>
+      <button class="nav-item" data-page="setup">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 12h12M2 4h12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="5" cy="4" r="1.5" fill="currentColor"/><circle cx="11" cy="12" r="1.5" fill="currentColor"/><path d="M2 8h12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>
+        Get Started
+      </button>
       <button class="nav-item active" data-page="devices">
         <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="9" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M5 14h6" stroke="currentColor" stroke-width="1.2"/><path d="M8 12v2" stroke="currentColor" stroke-width="1.2"/></svg>
         Devices
@@ -560,9 +620,84 @@ body{
         API Keys
       </button>
     </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">The Shire</div>
+      <button class="nav-item" data-page="about">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M8 14S3 11 3 7a5 5 0 0 1 10 0c0 4-5 7-5 7z" stroke="currentColor" stroke-width="1.2"/><path d="M8 7v7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        About
+      </button>
+    </div>
   </nav>
 
   <main class="main-content">
+    <!-- GET STARTED PAGE -->
+    <div class="page" id="page-setup" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Get Started</div>
+          <div class="page-desc">Install Shireguard on a Mac in four commands</div>
+        </div>
+      </div>
+
+      <div class="setup-steps">
+        <div class="setup-step">
+          <div class="setup-step-num">1</div>
+          <div class="setup-step-body">
+            <div class="setup-step-title">Install via Homebrew</div>
+            <div class="setup-step-desc">Requires macOS with <a href="https://brew.sh" target="_blank" style="color:var(--accent)">Homebrew</a> installed.</div>
+            <div class="code-block">
+              <code>brew install doppiscantsleep/shireguard/shireguard</code>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="setup-step">
+          <div class="setup-step-num">2</div>
+          <div class="setup-step-body">
+            <div class="setup-step-title">Log in</div>
+            <div class="setup-step-desc">Opens your browser for Sign in with Apple or Google. Returns to the terminal when done.</div>
+            <div class="code-block">
+              <code>shireguard login</code>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="setup-step">
+          <div class="setup-step-num">3</div>
+          <div class="setup-step-body">
+            <div class="setup-step-title">Register this device</div>
+            <div class="setup-step-desc">Generates a WireGuard key pair and assigns this machine an IP on your private network.</div>
+            <div class="code-block">
+              <code>shireguard register-device</code>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="setup-step">
+          <div class="setup-step-num">4</div>
+          <div class="setup-step-body">
+            <div class="setup-step-title">Start the tunnel</div>
+            <div class="setup-step-desc">Connects to your network. Run this on every machine — they'll find each other automatically.</div>
+            <div class="code-block">
+              <code>shireguard up</code>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- DEVICES PAGE -->
     <div class="page" id="page-devices">
       <div class="page-header">
@@ -654,6 +789,184 @@ body{
         </div>
       </div>
     </div>
+
+    <!-- ABOUT PAGE -->
+    <div class="page" id="page-about" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">About</div>
+          <div class="page-desc">Concerning Shireguard and the Free Folk of the network</div>
+        </div>
+      </div>
+
+      <div class="about-hero">
+        <!-- Shire landscape SVG background -->
+        <svg class="about-shire-bg" viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <linearGradient id="sg-sky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#05101e"/>
+              <stop offset="55%" stop-color="#0d2214"/>
+              <stop offset="100%" stop-color="#091608"/>
+            </linearGradient>
+            <linearGradient id="sg-hill1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#132808"/>
+              <stop offset="100%" stop-color="#0a1a05"/>
+            </linearGradient>
+            <linearGradient id="sg-hill2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#1f3f0c"/>
+              <stop offset="100%" stop-color="#122408"/>
+            </linearGradient>
+            <linearGradient id="sg-hill3" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#2e5a14"/>
+              <stop offset="100%" stop-color="#1c3a0c"/>
+            </linearGradient>
+            <linearGradient id="sg-mound" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#3c7020"/>
+              <stop offset="100%" stop-color="#264a12"/>
+            </linearGradient>
+            <radialGradient id="sg-moon-glow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#d4a520" stop-opacity=".35"/>
+              <stop offset="50%" stop-color="#d4a520" stop-opacity=".12"/>
+              <stop offset="100%" stop-color="#d4a520" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="sg-door-glow" cx="50%" cy="70%" r="60%">
+              <stop offset="0%" stop-color="#d4a520" stop-opacity=".5"/>
+              <stop offset="100%" stop-color="#d4a520" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+
+          <!-- Sky -->
+          <rect width="900" height="300" fill="url(#sg-sky)"/>
+
+          <!-- Stars -->
+          <circle cx="48"  cy="22" r="1"   fill="white" opacity=".55"/>
+          <circle cx="115" cy="38" r="1.2" fill="white" opacity=".45"/>
+          <circle cx="77"  cy="62" r=".8"  fill="white" opacity=".4"/>
+          <circle cx="195" cy="18" r="1"   fill="white" opacity=".6"/>
+          <circle cx="270" cy="42" r=".8"  fill="white" opacity=".5"/>
+          <circle cx="345" cy="24" r="1.1" fill="white" opacity=".4"/>
+          <circle cx="420" cy="14" r=".9"  fill="white" opacity=".55"/>
+          <circle cx="505" cy="36" r=".8"  fill="white" opacity=".45"/>
+          <circle cx="580" cy="20" r="1"   fill="white" opacity=".5"/>
+          <circle cx="640" cy="50" r=".9"  fill="white" opacity=".4"/>
+          <circle cx="160" cy="88" r=".8"  fill="white" opacity=".3"/>
+          <circle cx="310" cy="70" r=".7"  fill="white" opacity=".35"/>
+
+          <!-- Moon glow halo -->
+          <circle cx="790" cy="68" r="78" fill="url(#sg-moon-glow)"/>
+          <!-- Moon -->
+          <circle cx="790" cy="68" r="27" fill="#ecc840" opacity=".92"/>
+          <circle cx="790" cy="68" r="23" fill="#d4a820"/>
+          <!-- Subtle craters -->
+          <circle cx="782" cy="61" r="3.5" fill="#c49418" opacity=".25"/>
+          <circle cx="796" cy="74" r="2"   fill="#c49418" opacity=".2"/>
+
+          <!-- Far hills (layer 1 — darkest silhouette) -->
+          <path d="M0 195 Q70 162 145 178 Q230 194 310 162 Q385 132 455 152 Q530 172 605 145 Q678 118 755 142 Q828 166 900 148 L900 300 L0 300Z" fill="url(#sg-hill1)"/>
+
+          <!-- Mid hills (layer 2) -->
+          <path d="M0 235 Q65 215 145 228 Q230 242 315 220 Q395 198 470 212 Q548 226 625 205 Q702 184 778 204 Q848 222 900 210 L900 300 L0 300Z" fill="url(#sg-hill2)"/>
+
+          <!-- Near foreground hill (layer 3 — brightest) -->
+          <path d="M0 265 Q90 252 190 260 Q285 268 370 252 Q425 240 480 246 Q538 252 600 264 Q680 272 775 264 Q845 258 900 262 L900 300 L0 300Z" fill="url(#sg-hill3)"/>
+
+          <!-- Bag End knoll (raised mound on near hill) -->
+          <ellipse cx="480" cy="247" rx="68" ry="24" fill="url(#sg-mound)"/>
+
+          <!-- Chimney -->
+          <rect x="487" y="226" width="7" height="18" rx="1.5" fill="#5c4830" opacity=".85"/>
+          <!-- Smoke puffs -->
+          <circle cx="491" cy="219" r="5.5" fill="#b0a880" opacity=".18"/>
+          <circle cx="494" cy="210" r="4.5" fill="#b0a880" opacity=".13"/>
+          <circle cx="490" cy="202" r="3.5" fill="#b0a880" opacity=".08"/>
+
+          <!-- Warm glow from window (lantern) -->
+          <circle cx="480" cy="255" r="22" fill="url(#sg-door-glow)"/>
+
+          <!-- Stone door surround -->
+          <circle cx="480" cy="256" r="21" fill="#705038"/>
+          <!-- The iconic round green door -->
+          <circle cx="480" cy="256" r="17" fill="#18510e"/>
+          <!-- Door panel cross (horizontal + vertical dividers) -->
+          <line x1="480" y1="240" x2="480" y2="272" stroke="#0c320a" stroke-width="2.5" stroke-linecap="round" opacity=".9"/>
+          <line x1="464" y1="256" x2="496" y2="256" stroke="#0c320a" stroke-width="2.5" stroke-linecap="round" opacity=".9"/>
+          <!-- Brass door knob -->
+          <circle cx="492" cy="256" r="3"   fill="#c09020"/>
+          <circle cx="492" cy="256" r="1.8" fill="#e8b830"/>
+          <!-- Warm light glow keyhole -->
+          <ellipse cx="480" cy="261" rx="2" ry="3" fill="#d4a520" opacity=".45"/>
+
+          <!-- Winding path up to door -->
+          <path d="M450 275 Q462 268 480 267 Q498 268 510 275" stroke="#9a8050" stroke-width="3" fill="none" opacity=".45" stroke-linecap="round"/>
+          <path d="M428 285 Q438 280 450 275" stroke="#9a8050" stroke-width="2.5" fill="none" opacity=".35" stroke-linecap="round"/>
+
+          <!-- Trees — left cluster -->
+          <rect x="82"  y="234" width="5" height="26" rx="1.5" fill="#3a2808" opacity=".7"/>
+          <ellipse cx="84"  cy="224" rx="20" ry="24" fill="#1a4010" opacity=".85"/>
+          <ellipse cx="84"  cy="217" rx="15" ry="17" fill="#254e12" opacity=".9"/>
+          <rect x="114" y="240" width="4" height="22" rx="1"   fill="#3a2808" opacity=".65"/>
+          <ellipse cx="116" cy="231" rx="16" ry="20" fill="#1a4010" opacity=".8"/>
+          <ellipse cx="116" cy="225" rx="12" ry="14" fill="#254e12" opacity=".85"/>
+          <rect x="56"  y="244" width="4" height="18" rx="1"   fill="#3a2808" opacity=".55"/>
+          <ellipse cx="58"  cy="236" rx="13" ry="16" fill="#132e0c" opacity=".7"/>
+
+          <!-- Trees — right cluster -->
+          <rect x="796" y="228" width="5" height="28" rx="1.5" fill="#3a2808" opacity=".7"/>
+          <ellipse cx="798" cy="217" rx="20" ry="24" fill="#1a4010" opacity=".8"/>
+          <ellipse cx="798" cy="210" rx="15" ry="17" fill="#254e12" opacity=".85"/>
+          <rect x="826" y="234" width="4" height="24" rx="1"   fill="#3a2808" opacity=".65"/>
+          <ellipse cx="828" cy="225" rx="16" ry="20" fill="#1a4010" opacity=".75"/>
+          <ellipse cx="828" cy="219" rx="12" ry="14" fill="#254e12" opacity=".8"/>
+
+          <!-- Flowers — left side -->
+          <circle cx="305" cy="272" r="3"   fill="#d4a520" opacity=".6"/>
+          <circle cx="316" cy="269" r="2"   fill="#d4a520" opacity=".5"/>
+          <circle cx="325" cy="273" r="2.5" fill="#e0b020" opacity=".5"/>
+          <circle cx="222" cy="274" r="2.5" fill="#c07840" opacity=".5"/>
+
+          <!-- Flowers — right side -->
+          <circle cx="570" cy="270" r="3"   fill="#d4a520" opacity=".6"/>
+          <circle cx="581" cy="267" r="2"   fill="#d4a520" opacity=".5"/>
+          <circle cx="668" cy="271" r="2.5" fill="#c07840" opacity=".5"/>
+
+          <!-- Distant Misty Mountains suggestion (far right, faint) -->
+          <path d="M838 148 L868 108 L898 148Z" fill="#0c2010" opacity=".35"/>
+          <path d="M858 148 L882 118 L900 140 L900 148Z" fill="#0c2010" opacity=".25"/>
+        </svg>
+
+        <!-- Left-side gradient to make text readable -->
+        <div class="about-hero-overlay"></div>
+
+        <!-- Text content -->
+        <div class="about-hero-content">
+          <div class="about-hero-title">Concerning Shireguard</div>
+          <div class="about-hero-quote">"Even the smallest device can change the course of the network."</div>
+          <div class="about-hero-body">
+            In an age when the roads of the internet are watched by unseen eyes and every packet that travels in the open may be read by strangers, the free folk of the network sought a better way.<br><br>
+            Shireguard weaves secret tunnels — WireGuard pathways sealed with cryptographic keys that only trusted devices may hold — so that your machines may speak freely across any distance, as if gathered around the same hearth in Bag End.
+          </div>
+        </div>
+      </div>
+
+      <div class="about-cards">
+        <div class="about-card">
+          <div class="about-card-icon">🔑</div>
+          <div class="about-card-title">Encrypted Paths</div>
+          <div class="about-card-body">Every packet is wrapped in ciphers that not even the Nine Riders of the Network could unravel. Your traffic passes unseen through the lands of a hostile internet.</div>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">🌿</div>
+          <div class="about-card-title">Direct Connections</div>
+          <div class="about-card-body">Your devices find each other across the wild — through firewalls, across NAT, over mountain passes — without passing word through any great tower or dark cloud.</div>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">🏡</div>
+          <div class="about-card-title">Always the Shire</div>
+          <div class="about-card-body">No matter how far your Fellowship roams, they share a single private realm: 100.65.0.0/16. From Minas Tirith to the Prancing Pony, every device knows its way home.</div>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -848,48 +1161,6 @@ async function tryRefresh() {
 }
 
 // ── Auth ──
-document.querySelectorAll('.auth-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const isLogin = tab.dataset.tab === 'login';
-    document.getElementById('login-form').style.display = isLogin ? '' : 'none';
-    document.getElementById('register-form').style.display = isLogin ? 'none' : '';
-  });
-});
-
-document.getElementById('login-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const errEl = document.getElementById('login-error');
-  errEl.classList.remove('visible');
-  try {
-    const data = await api('POST', '/v1/auth/login', {
-      email: fd.get('email'), password: fd.get('password')
-    });
-    handleAuth(data);
-  } catch (err) {
-    errEl.textContent = err.message;
-    errEl.classList.add('visible');
-  }
-});
-
-document.getElementById('register-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const errEl = document.getElementById('register-error');
-  errEl.classList.remove('visible');
-  try {
-    const data = await api('POST', '/v1/auth/register', {
-      email: fd.get('email'), password: fd.get('password'), invite_code: fd.get('invite_code')
-    });
-    handleAuth(data);
-  } catch (err) {
-    errEl.textContent = err.message;
-    errEl.classList.add('visible');
-  }
-});
-
 function handleAuth(data) {
   accessToken = data.access_token;
   refreshToken = data.refresh_token;
@@ -1239,9 +1510,24 @@ function esc(s) {
   return d.innerHTML;
 }
 
+function copyCode(btn) {
+  const code = btn.closest('.code-block').querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    btn.classList.add('copied');
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l4 4 8-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>';
+    }, 1500);
+  });
+}
+
 function timeAgo(dateStr) {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  // SQLite stores datetimes without a timezone suffix; append Z to force UTC parsing
+  const utc = /Z|[+-]\d{2}:\d{2}$/.test(dateStr) ? dateStr : dateStr + 'Z';
+  const diff = Date.now() - new Date(utc).getTime();
   const s = Math.floor(diff / 1000);
+  if (s < 10) return 'just now';
   if (s < 60) return `${s}s ago`;
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m ago`;

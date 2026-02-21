@@ -48,7 +48,7 @@ func main() {
 
 	root.PersistentFlags().StringVar(&cfg.APIURL, "api-url", cfg.APIURL, "Control plane API URL")
 
-	root.AddCommand(loginCmd(), registerCmd(), registerDeviceCmd(), upCmd(), downCmd(), statusCmd(), devicesCmd(), logoutCmd())
+	root.AddCommand(loginCmd(), registerDeviceCmd(), upCmd(), downCmd(), statusCmd(), devicesCmd(), logoutCmd())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -64,37 +64,13 @@ func newClient() *api.Client {
 }
 
 func loginCmd() *cobra.Command {
-	var email, password string
-	var useApple bool
-	cmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "login",
-		Short: "Log in to your Shireguard account",
+		Short: "Log in with Apple Sign-In (opens browser)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if useApple {
-				return loginWithApple()
-			}
-			if email == "" || password == "" {
-				return fmt.Errorf("--email and --password are required (or use --apple)")
-			}
-			client := api.New(cfg.APIURL, "", "", nil)
-			resp, err := client.Login(email, password)
-			if err != nil {
-				return err
-			}
-			cfg.AccessToken = resp.AccessToken
-			cfg.RefreshToken = resp.RefreshToken
-			cfg.Email = resp.User.Email
-			if err := cfg.Save(); err != nil {
-				return err
-			}
-			fmt.Printf("Logged in as %s\n", resp.User.Email)
-			return nil
+			return loginWithApple()
 		},
 	}
-	cmd.Flags().StringVar(&email, "email", "", "Account email")
-	cmd.Flags().StringVar(&password, "password", "", "Account password")
-	cmd.Flags().BoolVar(&useApple, "apple", false, "Sign in with Apple (opens browser)")
-	return cmd
 }
 
 func loginWithApple() error {
@@ -178,94 +154,6 @@ func loginWithApple() error {
 	}
 }
 
-func registerCmd() *cobra.Command {
-	var email, password, deviceName string
-	cmd := &cobra.Command{
-		Use:   "register",
-		Short: "Create account and register this device",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client := api.New(cfg.APIURL, "", "", nil)
-
-			// Register account
-			resp, err := client.Register(email, password)
-			if err != nil {
-				return err
-			}
-			cfg.AccessToken = resp.AccessToken
-			cfg.RefreshToken = resp.RefreshToken
-			cfg.Email = resp.User.Email
-
-			// Update client with tokens
-			client = newClient()
-
-			// Generate WireGuard keys
-			privKey, pubKey, err := wg.GenerateKeyPair()
-			if err != nil {
-				return fmt.Errorf("generating keys: %w", err)
-			}
-
-			// Determine platform
-			platform := runtime.GOOS
-			if platform == "darwin" {
-				platform = "macos"
-			}
-
-			// Register device
-			networkID := ""
-			if resp.Network != nil {
-				networkID = resp.Network.ID
-			} else {
-				// Fetch default network
-				nets, err := client.ListNetworks()
-				if err != nil {
-					return fmt.Errorf("listing networks: %w", err)
-				}
-				if len(nets) == 0 {
-					return fmt.Errorf("no networks found")
-				}
-				networkID = nets[0].ID
-			}
-
-			if deviceName == "" {
-				hostname, _ := os.Hostname()
-				deviceName = hostname
-			}
-
-			dev, err := client.RegisterDevice(&api.RegisterDeviceRequest{
-				Name:      deviceName,
-				Platform:  platform,
-				PublicKey: pubKey,
-				NetworkID: networkID,
-			})
-			if err != nil {
-				return fmt.Errorf("registering device: %w", err)
-			}
-
-			cfg.DeviceID = dev.ID
-			cfg.DeviceName = dev.Name
-			cfg.NetworkID = dev.NetworkID
-			cfg.PrivateKey = privKey
-			cfg.PublicKey = pubKey
-			cfg.AssignedIP = dev.AssignedIP
-
-			if err := cfg.Save(); err != nil {
-				return err
-			}
-
-			fmt.Printf("Account created: %s\n", resp.User.Email)
-			fmt.Printf("Device registered: %s (%s)\n", dev.Name, dev.AssignedIP)
-			fmt.Println("Run 'shireguard up' to start the tunnel")
-			return nil
-		},
-	}
-	cmd.Flags().StringVar(&email, "email", "", "Account email")
-	cmd.Flags().StringVar(&password, "password", "", "Account password")
-	cmd.Flags().StringVar(&deviceName, "name", "", "Device name (defaults to hostname)")
-	cmd.MarkFlagRequired("email")
-	cmd.MarkFlagRequired("password")
-	return cmd
-}
-
 func registerDeviceCmd() *cobra.Command {
 	var deviceName string
 	cmd := &cobra.Command{
@@ -343,7 +231,7 @@ func upCmd() *cobra.Command {
 				return fmt.Errorf("not logged in — run 'shireguard login' first")
 			}
 			if !cfg.IsRegistered() {
-				return fmt.Errorf("device not registered — run 'shireguard register' first")
+				return fmt.Errorf("device not registered — run 'shireguard register-device' first")
 			}
 
 			// Write pidfile so 'shireguard down' can signal this process

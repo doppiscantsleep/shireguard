@@ -1,123 +1,25 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
-import { hashPassword, verifyPassword } from './crypto';
 import { createAccessToken, createRefreshToken, refreshTokenTTL, verifyAccessToken } from './jwt';
 import { authMiddleware } from './middleware';
 import { checkRateLimit } from './ratelimit';
 
 const auth = new Hono<{ Bindings: Env }>();
 
-// POST /auth/register
-auth.post('/register', async (c) => {
-  // Rate limit: 5 registration attempts per IP per hour.
-  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
-  const rl = await checkRateLimit(c.env.KV, ip, {
-    action: 'register',
-    limit: 5,
-    windowSeconds: 3600,
-  });
-  if (rl.limited) {
-    return c.json({ error: 'Too many registration attempts. Try again later.' }, 429, {
-      'Retry-After': String(rl.retryAfter),
-    });
-  }
-
-  const body = await c.req.json<{ email: string; password: string; invite_code?: string }>();
-  if (!body.email || !body.password) {
-    return c.json({ error: 'Email and password are required' }, 400);
-  }
-
-  if (body.invite_code !== c.env.INVITE_CODE) {
-    return c.json({ error: 'Invalid invite code' }, 403);
-  }
-
-  if (body.password.length < 8) {
-    return c.json({ error: 'Password must be at least 8 characters' }, 400);
-  }
-
-  const email = body.email.toLowerCase().trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return c.json({ error: 'Invalid email format' }, 400);
-  }
-
-  // Check if user exists
-  const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?')
-    .bind(email)
-    .first();
-  if (existing) {
-    return c.json({ error: 'Email already registered' }, 409);
-  }
-
-  const userId = crypto.randomUUID();
-  const passwordHash = await hashPassword(body.password);
-
-  await c.env.DB.prepare('INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)')
-    .bind(userId, email, passwordHash)
-    .run();
-
-  // Create default network
-  const networkId = crypto.randomUUID();
-  await c.env.DB.prepare('INSERT INTO networks (id, user_id, name, cidr) VALUES (?, ?, ?, ?)')
-    .bind(networkId, userId, 'default', '100.65.0.0/16')
-    .run();
-
-  const accessToken = await createAccessToken(userId, email, c.env.JWT_SECRET);
-  const refreshToken = await createRefreshToken();
-
-  // Store refresh token in KV
-  await c.env.KV.put(`refresh:${refreshToken}`, userId, { expirationTtl: refreshTokenTTL() });
-
-  return c.json({
-    user: { id: userId, email },
-    network: { id: networkId, name: 'default', cidr: '100.65.0.0/16' },
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  }, 201);
-});
-
-// POST /auth/login
-auth.post('/login', async (c) => {
-  // Rate limit: 10 login attempts per IP per minute.
-  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
-  const rl = await checkRateLimit(c.env.KV, ip, {
-    action: 'login',
-    limit: 10,
-    windowSeconds: 60,
-  });
-  if (rl.limited) {
-    return c.json({ error: 'Too many login attempts. Try again later.' }, 429, {
-      'Retry-After': String(rl.retryAfter),
-    });
-  }
-
-  const body = await c.req.json<{ email: string; password: string }>();
-  if (!body.email || !body.password) {
-    return c.json({ error: 'Email and password are required' }, 400);
-  }
-
-  const email = body.email.toLowerCase().trim();
-  const user = await c.env.DB.prepare('SELECT id, email, password_hash FROM users WHERE email = ?')
-    .bind(email)
-    .first<{ id: string; email: string; password_hash: string }>();
-
-  if (!user || !(await verifyPassword(body.password, user.password_hash))) {
-    return c.json({ error: 'Invalid email or password' }, 401);
-  }
-
-  const accessToken = await createAccessToken(user.id, user.email, c.env.JWT_SECRET);
-  const refreshToken = await createRefreshToken();
-
-  await c.env.KV.put(`refresh:${refreshToken}`, user.id, { expirationTtl: refreshTokenTTL() });
-
-  return c.json({
-    user: { id: user.id, email: user.email },
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-});
+// Escape HTML special characters before embedding untrusted strings in HTML responses
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 // POST /auth/refresh
 auth.post('/refresh', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const rl = await checkRateLimit(c.env.KV, ip, { action: 'refresh', limit: 10, windowSeconds: 60 });
+  if (rl.limited) {
+    return c.json({ error: 'Too many requests. Try again later.' }, 429, { 'Retry-After': String(rl.retryAfter) });
+  }
+
   const body = await c.req.json<{ refresh_token: string }>();
   if (!body.refresh_token) {
     return c.json({ error: 'Refresh token is required' }, 400);
@@ -281,19 +183,32 @@ async function buildAppleClientSecret(env: Env): Promise<string> {
   return `${signingInput}.${b64urlFromBytes(new Uint8Array(signature))}`;
 }
 
-async function verifyAppleIdToken(idToken: string): Promise<{ sub: string; email?: string }> {
+async function verifyRSAIdToken(
+  idToken: string,
+  jwksUrl: string,
+  label: string,
+  expectedAud: string,
+  expectedIss: string,
+): Promise<{ sub: string; email?: string }> {
   const parts = idToken.split('.');
   if (parts.length !== 3) throw new Error('Invalid id_token format');
 
   const headerJson = JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')));
   const payloadJson = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
 
-  // Fetch Apple JWKS (Apple uses RSA keys for id_token signing)
-  const jwksRes = await fetch('https://appleid.apple.com/auth/keys');
+  // Validate standard claims before touching JWKS
+  const now = Math.floor(Date.now() / 1000);
+  if (payloadJson.exp < now) throw new Error(`${label} id_token has expired`);
+  if (payloadJson.iss !== expectedIss) throw new Error(`${label} id_token has unexpected issuer`);
+  // Apple may return aud as the service ID string; Google returns the client ID
+  const aud = Array.isArray(payloadJson.aud) ? payloadJson.aud : [payloadJson.aud];
+  if (!aud.includes(expectedAud)) throw new Error(`${label} id_token has unexpected audience`);
+
+  const jwksRes = await fetch(jwksUrl);
   const jwks = await jwksRes.json<{ keys: Array<JsonWebKey & { kid: string }> }>();
 
   const jwk = jwks.keys.find((k) => k.kid === headerJson.kid);
-  if (!jwk) throw new Error('No matching key found in Apple JWKS');
+  if (!jwk) throw new Error(`No matching key found in ${label} JWKS`);
 
   const pubKey = await crypto.subtle.importKey(
     'jwk',
@@ -306,15 +221,30 @@ async function verifyAppleIdToken(idToken: string): Promise<{ sub: string; email
   const sigBytes = b64urlDecode(parts[2]);
   const signingInput = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
 
-  const valid = await crypto.subtle.verify(
-    { name: 'RSASSA-PKCS1-v1_5' },
-    pubKey,
-    sigBytes,
-    signingInput
-  );
-  if (!valid) throw new Error('Invalid Apple id_token signature');
+  const valid = await crypto.subtle.verify({ name: 'RSASSA-PKCS1-v1_5' }, pubKey, sigBytes, signingInput);
+  if (!valid) throw new Error(`Invalid ${label} id_token signature`);
 
   return { sub: payloadJson.sub, email: payloadJson.email };
+}
+
+function verifyAppleIdToken(idToken: string, env: Env) {
+  return verifyRSAIdToken(
+    idToken,
+    'https://appleid.apple.com/auth/keys',
+    'Apple',
+    env.APPLE_SERVICE_ID,
+    'https://appleid.apple.com',
+  );
+}
+
+function verifyGoogleIdToken(idToken: string, env: Env) {
+  return verifyRSAIdToken(
+    idToken,
+    'https://www.googleapis.com/oauth2/v3/certs',
+    'Google',
+    env.GOOGLE_CLIENT_ID,
+    'accounts.google.com',
+  );
 }
 
 // Only allow localhost CLI redirect URIs (prevents open redirect abuse)
@@ -331,6 +261,10 @@ function isLocalhostURL(url: string): boolean {
 // Accepts optional ?cli_session=<id> for CLI polling logins
 // Accepts optional ?cli_redirect=http://127.0.0.1:PORT/callback for legacy CLI logins
 auth.get('/apple', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const rl = await checkRateLimit(c.env.KV, ip, { action: 'oauth-init', limit: 10, windowSeconds: 60 });
+  if (rl.limited) return c.json({ error: 'Too many requests. Try again later.' }, 429);
+
   const cliSession = c.req.query('cli_session');
   const cliRedirect = c.req.query('cli_redirect');
 
@@ -380,7 +314,7 @@ auth.post('/apple/callback', async (c) => {
   const cliRedirect = !isPollSession && stateData !== 'web' ? stateData : null;
 
   if (error) {
-    return c.html(`<!DOCTYPE html><html><body><h1>Sign in cancelled</h1><p>${error}</p><a href="/">Go back</a></body></html>`, 400);
+    return c.html(`<!DOCTYPE html><html><body><h1>Sign in cancelled</h1><p>${escHtml(String(error))}</p><a href="/">Go back</a></body></html>`, 400);
   }
 
   // Exchange code for tokens
@@ -406,7 +340,7 @@ auth.post('/apple/callback', async (c) => {
   }
 
   const tokenData = await tokenRes.json<{ id_token: string }>();
-  const { sub: appleSub, email: idTokenEmail } = await verifyAppleIdToken(tokenData.id_token);
+  const { sub: appleSub, email: idTokenEmail } = await verifyAppleIdToken(tokenData.id_token, c.env);
 
   // Email: prefer id_token claim, fall back to user JSON param (first sign-in only)
   let email: string | undefined = idTokenEmail;
@@ -441,8 +375,8 @@ auth.post('/apple/callback', async (c) => {
     const userId = crypto.randomUUID();
     const userEmail = email?.toLowerCase().trim() ?? `apple_${appleSub}@noemail.local`;
     await c.env.DB.prepare(
-      'INSERT INTO users (id, email, password_hash, apple_sub) VALUES (?, ?, ?, ?)'
-    ).bind(userId, userEmail, crypto.randomUUID(), appleSub).run();
+      'INSERT INTO users (id, email, apple_sub) VALUES (?, ?, ?)'
+    ).bind(userId, userEmail, appleSub).run();
 
     const networkId = crypto.randomUUID();
     await c.env.DB.prepare('INSERT INTO networks (id, user_id, name, cidr) VALUES (?, ?, ?, ?)')
@@ -450,6 +384,11 @@ auth.post('/apple/callback', async (c) => {
       .run();
 
     user = { id: userId, email: userEmail, apple_sub: appleSub };
+    c.executionCtx.waitUntil(fetch(c.env.DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: `🆕 New user signed up via Apple: ${userEmail}` }),
+    }));
   }
 
   const accessToken = await createAccessToken(user.id, user.email, c.env.JWT_SECRET);
@@ -485,6 +424,296 @@ auth.post('/apple/callback', async (c) => {
   }
 
   // Web login: store tokens in localStorage and redirect to dashboard
+  return c.html(`<!DOCTYPE html>
+<html>
+<head><title>Signing in...</title></head>
+<body>
+<script>
+localStorage.setItem('sg_access_token', ${JSON.stringify(accessToken)});
+localStorage.setItem('sg_refresh_token', ${JSON.stringify(refreshToken)});
+localStorage.setItem('sg_user_email', ${JSON.stringify(user.email)});
+window.location.replace('/');
+</script>
+</body>
+</html>`);
+});
+
+// GET /google — initiate Google OAuth flow
+auth.get('/google', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const rl = await checkRateLimit(c.env.KV, ip, { action: 'oauth-init', limit: 10, windowSeconds: 60 });
+  if (rl.limited) return c.json({ error: 'Too many requests. Try again later.' }, 429);
+
+  const cliSession = c.req.query('cli_session');
+
+  const state = crypto.randomUUID();
+  const stateValue = cliSession ? `poll:${cliSession}` : 'web';
+  await c.env.KV.put(`state:${state}`, stateValue, { expirationTtl: 600 });
+
+  const params = new URLSearchParams({
+    client_id: c.env.GOOGLE_CLIENT_ID,
+    redirect_uri: 'https://shireguard.com/v1/auth/google/callback',
+    response_type: 'code',
+    scope: 'openid email',
+    state,
+  });
+
+  return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+});
+
+// GET /google/callback — Google redirects here with ?code=&state=
+auth.get('/google/callback', async (c) => {
+  const code = c.req.query('code');
+  const state = c.req.query('state');
+  const error = c.req.query('error');
+
+  const stateData = await c.env.KV.get(`state:${state}`);
+  if (!stateData) {
+    return c.html('<h1>Invalid or expired state</h1>', 400);
+  }
+  await c.env.KV.delete(`state:${state}`);
+  const isPollSession = stateData.startsWith('poll:');
+
+  if (error) {
+    return c.html(`<!DOCTYPE html><html><body><h1>Sign in cancelled</h1><p>${escHtml(String(error))}</p><a href="/">Go back</a></body></html>`, 400);
+  }
+
+  // Exchange code for tokens
+  const tokenParams = new URLSearchParams({
+    client_id: c.env.GOOGLE_CLIENT_ID,
+    client_secret: c.env.GOOGLE_CLIENT_SECRET,
+    code: code!,
+    redirect_uri: 'https://shireguard.com/v1/auth/google/callback',
+    grant_type: 'authorization_code',
+  });
+
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: tokenParams,
+  });
+
+  if (!tokenRes.ok) {
+    console.error('Google token exchange failed:', await tokenRes.text());
+    return c.html('<h1>Authentication failed</h1><a href="/">Go back</a>', 500);
+  }
+
+  const tokenData = await tokenRes.json<{ id_token: string }>();
+  const { sub: googleSub, email } = await verifyGoogleIdToken(tokenData.id_token, c.env);
+
+  // Look up user: first by google_sub, then by email (links existing accounts)
+  let user = await c.env.DB.prepare(
+    'SELECT id, email, google_sub FROM users WHERE google_sub = ?'
+  ).bind(googleSub).first<{ id: string; email: string; google_sub: string | null }>();
+
+  if (!user && email) {
+    const normalizedEmail = email.toLowerCase().trim();
+    user = await c.env.DB.prepare(
+      'SELECT id, email, google_sub FROM users WHERE email = ?'
+    ).bind(normalizedEmail).first<{ id: string; email: string; google_sub: string | null }>();
+
+    if (user && !user.google_sub) {
+      await c.env.DB.prepare('UPDATE users SET google_sub = ? WHERE id = ?')
+        .bind(googleSub, user.id)
+        .run();
+    }
+  }
+
+  if (!user) {
+    const userId = crypto.randomUUID();
+    const userEmail = email?.toLowerCase().trim() ?? `google_${googleSub}@noemail.local`;
+    await c.env.DB.prepare(
+      'INSERT INTO users (id, email, google_sub) VALUES (?, ?, ?)'
+    ).bind(userId, userEmail, googleSub).run();
+
+    const networkId = crypto.randomUUID();
+    await c.env.DB.prepare('INSERT INTO networks (id, user_id, name, cidr) VALUES (?, ?, ?, ?)')
+      .bind(networkId, userId, 'default', '100.65.0.0/16')
+      .run();
+
+    user = { id: userId, email: userEmail, google_sub: googleSub };
+    c.executionCtx.waitUntil(fetch(c.env.DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: `🆕 New user signed up via Google: ${userEmail}` }),
+    }));
+  }
+
+  const accessToken = await createAccessToken(user.id, user.email, c.env.JWT_SECRET);
+  const refreshToken = await createRefreshToken();
+  await c.env.KV.put(`refresh:${refreshToken}`, user.id, { expirationTtl: refreshTokenTTL() });
+
+  if (isPollSession) {
+    const sessionId = stateData.slice('poll:'.length);
+    await c.env.KV.put(
+      `cli_session:${sessionId}`,
+      JSON.stringify({ access_token: accessToken, refresh_token: refreshToken, email: user.email }),
+      { expirationTtl: 300 }
+    );
+    return c.html(`<!DOCTYPE html>
+<html>
+<head><title>Signed in</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:4rem">
+<h2>&#x2713; Signed in</h2>
+<p>You can close this tab and return to the terminal.</p>
+</body>
+</html>`);
+  }
+
+  return c.html(`<!DOCTYPE html>
+<html>
+<head><title>Signing in...</title></head>
+<body>
+<script>
+localStorage.setItem('sg_access_token', ${JSON.stringify(accessToken)});
+localStorage.setItem('sg_refresh_token', ${JSON.stringify(refreshToken)});
+localStorage.setItem('sg_user_email', ${JSON.stringify(user.email)});
+window.location.replace('/');
+</script>
+</body>
+</html>`);
+});
+
+// GET /github — initiate GitHub OAuth flow
+auth.get('/github', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const rl = await checkRateLimit(c.env.KV, ip, { action: 'oauth-init', limit: 10, windowSeconds: 60 });
+  if (rl.limited) return c.json({ error: 'Too many requests. Try again later.' }, 429);
+
+  const cliSession = c.req.query('cli_session');
+
+  const state = crypto.randomUUID();
+  const stateValue = cliSession ? `poll:${cliSession}` : 'web';
+  await c.env.KV.put(`state:${state}`, stateValue, { expirationTtl: 600 });
+
+  const params = new URLSearchParams({
+    client_id: c.env.GITHUB_CLIENT_ID,
+    redirect_uri: 'https://shireguard.com/v1/auth/github/callback',
+    scope: 'read:user user:email',
+    state,
+  });
+
+  return c.redirect(`https://github.com/login/oauth/authorize?${params}`);
+});
+
+// GET /github/callback — GitHub redirects here with ?code=&state=
+auth.get('/github/callback', async (c) => {
+  const code = c.req.query('code');
+  const state = c.req.query('state');
+  const error = c.req.query('error');
+
+  const stateData = await c.env.KV.get(`state:${state}`);
+  if (!stateData) {
+    return c.html('<h1>Invalid or expired state</h1>', 400);
+  }
+  await c.env.KV.delete(`state:${state}`);
+  const isPollSession = stateData.startsWith('poll:');
+
+  if (error) {
+    return c.html(`<!DOCTYPE html><html><body><h1>Sign in cancelled</h1><p>${escHtml(String(error))}</p><a href="/">Go back</a></body></html>`, 400);
+  }
+
+  // Exchange code for access token
+  const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      client_id: c.env.GITHUB_CLIENT_ID,
+      client_secret: c.env.GITHUB_CLIENT_SECRET,
+      code,
+      redirect_uri: 'https://shireguard.com/v1/auth/github/callback',
+    }),
+  });
+
+  if (!tokenRes.ok) {
+    console.error('GitHub token exchange failed:', await tokenRes.text());
+    return c.html('<h1>Authentication failed</h1><a href="/">Go back</a>', 500);
+  }
+
+  const { access_token } = await tokenRes.json<{ access_token: string }>();
+
+  // Fetch user profile
+  const userRes = await fetch('https://api.github.com/user', {
+    headers: { Authorization: `Bearer ${access_token}`, 'User-Agent': 'shireguard' },
+  });
+  if (!userRes.ok) {
+    return c.html('<h1>Failed to fetch GitHub profile</h1><a href="/">Go back</a>', 500);
+  }
+  const ghUser = await userRes.json<{ id: number; email: string | null; login: string }>();
+
+  // Email may be private — fall back to the emails endpoint
+  let email = ghUser.email;
+  if (!email) {
+    const emailsRes = await fetch('https://api.github.com/user/emails', {
+      headers: { Authorization: `Bearer ${access_token}`, 'User-Agent': 'shireguard' },
+    });
+    if (emailsRes.ok) {
+      const emails = await emailsRes.json<Array<{ email: string; primary: boolean; verified: boolean }>>();
+      email = emails.find((e) => e.primary && e.verified)?.email ?? emails[0]?.email ?? null;
+    }
+  }
+
+  const githubId = String(ghUser.id);
+
+  // Look up user: first by github_id, then by email (links existing accounts)
+  let user = await c.env.DB.prepare(
+    'SELECT id, email, github_id FROM users WHERE github_id = ?'
+  ).bind(githubId).first<{ id: string; email: string; github_id: string | null }>();
+
+  if (!user && email) {
+    const normalizedEmail = email.toLowerCase().trim();
+    user = await c.env.DB.prepare(
+      'SELECT id, email, github_id FROM users WHERE email = ?'
+    ).bind(normalizedEmail).first<{ id: string; email: string; github_id: string | null }>();
+
+    if (user && !user.github_id) {
+      await c.env.DB.prepare('UPDATE users SET github_id = ? WHERE id = ?')
+        .bind(githubId, user.id)
+        .run();
+    }
+  }
+
+  if (!user) {
+    const userId = crypto.randomUUID();
+    const userEmail = email?.toLowerCase().trim() ?? `github_${githubId}@noemail.local`;
+    await c.env.DB.prepare(
+      'INSERT INTO users (id, email, github_id) VALUES (?, ?, ?)'
+    ).bind(userId, userEmail, githubId).run();
+
+    const networkId = crypto.randomUUID();
+    await c.env.DB.prepare('INSERT INTO networks (id, user_id, name, cidr) VALUES (?, ?, ?, ?)')
+      .bind(networkId, userId, 'default', '100.65.0.0/16')
+      .run();
+
+    user = { id: userId, email: userEmail, github_id: githubId };
+    c.executionCtx.waitUntil(fetch(c.env.DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: `🆕 New user signed up via GitHub: ${userEmail} (@${ghUser.login})` }),
+    }));
+  }
+
+  const accessToken = await createAccessToken(user.id, user.email, c.env.JWT_SECRET);
+  const refreshToken = await createRefreshToken();
+  await c.env.KV.put(`refresh:${refreshToken}`, user.id, { expirationTtl: refreshTokenTTL() });
+
+  if (isPollSession) {
+    const sessionId = stateData.slice('poll:'.length);
+    await c.env.KV.put(
+      `cli_session:${sessionId}`,
+      JSON.stringify({ access_token: accessToken, refresh_token: refreshToken, email: user.email }),
+      { expirationTtl: 300 }
+    );
+    return c.html(`<!DOCTYPE html>
+<html>
+<head><title>Signed in</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:4rem">
+<h2>&#x2713; Signed in</h2>
+<p>You can close this tab and return to the terminal.</p>
+</body>
+</html>`);
+  }
+
   return c.html(`<!DOCTYPE html>
 <html>
 <head><title>Signing in...</title></head>

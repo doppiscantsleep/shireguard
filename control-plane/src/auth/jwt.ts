@@ -39,7 +39,8 @@ export async function verifyAccessToken(
     if (!payload) return null;
 
     const now = Math.floor(Date.now() / 1000);
-    if (payload.exp < now) return null;
+    if (payload.iat > now) return null; // issued in the future
+    if (payload.exp < now) return null; // expired
 
     return payload;
   } catch {
@@ -64,6 +65,10 @@ async function sign(payload: JWTPayload, secret: string): Promise<string> {
 async function verify(token: string, secret: string): Promise<JWTPayload | null> {
   const parts = token.split('.');
   if (parts.length !== 3) return null;
+
+  // Reject tokens with any algorithm other than HS256
+  const header = JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')));
+  if (header.alg !== 'HS256') return null;
 
   const data = `${parts[0]}.${parts[1]}`;
   const signature = b64urlDecode(parts[2]);

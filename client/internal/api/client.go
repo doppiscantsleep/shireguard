@@ -31,44 +31,6 @@ func New(baseURL, accessToken, refreshToken string, onTokens func(access, refres
 
 // Auth
 
-type AuthResponse struct {
-	User struct {
-		ID    string `json:"id"`
-		Email string `json:"email"`
-	} `json:"user"`
-	Network *struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-		CIDR string `json:"cidr"`
-	} `json:"network,omitempty"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-func (c *Client) Register(email, password string) (*AuthResponse, error) {
-	var resp AuthResponse
-	err := c.doPublic("POST", "/v1/auth/register", map[string]string{
-		"email": email, "password": password,
-	}, &resp)
-	if err != nil {
-		return nil, err
-	}
-	c.setTokens(resp.AccessToken, resp.RefreshToken)
-	return &resp, nil
-}
-
-func (c *Client) Login(email, password string) (*AuthResponse, error) {
-	var resp AuthResponse
-	err := c.doPublic("POST", "/v1/auth/login", map[string]string{
-		"email": email, "password": password,
-	}, &resp)
-	if err != nil {
-		return nil, err
-	}
-	c.setTokens(resp.AccessToken, resp.RefreshToken)
-	return &resp, nil
-}
-
 func (c *Client) Refresh() error {
 	c.mu.Lock()
 	rt := c.refreshToken

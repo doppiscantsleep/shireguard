@@ -473,7 +473,7 @@ body{
 <!-- AUTH SCREEN -->
 <div id="auth-screen">
   <div class="auth-container">
-    <div class="auth-logo">shireguard<span>.dev</span></div>
+    <div class="auth-logo">shireguard</div>
     <div class="auth-subtitle">WireGuard tunnels for the Free Folk of the network</div>
     <div class="auth-box">
       <div class="auth-tabs">
@@ -524,7 +524,7 @@ body{
       <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5"/></svg>
       </button>
-      <div class="header-logo">shireguard<span>.dev</span></div>
+      <div class="header-logo">shireguard</div>
       <div class="header-status">connected</div>
     </div>
     <div class="header-right">
@@ -759,8 +759,9 @@ let userEmail = null;
 let networks = [];
 let currentPage = 'devices';
 
-// Pick up tokens set by Apple OAuth callback redirect
-(function checkOAuthTokens() {
+// Initialise session: handle Apple OAuth redirect, or restore a persisted session
+(async function initSession() {
+  // Apple OAuth callback stores tokens temporarily; consume and clear them
   const at = localStorage.getItem('sg_access_token');
   const rt = localStorage.getItem('sg_refresh_token');
   const em = localStorage.getItem('sg_user_email');
@@ -769,6 +770,28 @@ let currentPage = 'devices';
     localStorage.removeItem('sg_refresh_token');
     localStorage.removeItem('sg_user_email');
     handleAuth({ access_token: at, refresh_token: rt, user: { email: em || '' } });
+    return;
+  }
+
+  // Restore a persisted session (survives page refresh / new tab for up to 7 days)
+  const srt = localStorage.getItem('sg_session_rt');
+  const sem = localStorage.getItem('sg_session_email');
+  if (srt && sem) {
+    refreshToken = srt;
+    userEmail = sem;
+    const ok = await tryRefresh(); // access token is short-lived; always refresh on restore
+    if (ok) {
+      document.getElementById('user-email').textContent = userEmail;
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app-screen').style.display = 'block';
+      document.querySelector('.btn-theme-float').style.display = 'none';
+      loadAll();
+    } else {
+      refreshToken = null;
+      userEmail = null;
+      localStorage.removeItem('sg_session_rt');
+      localStorage.removeItem('sg_session_email');
+    }
   }
 })();
 
@@ -811,6 +834,7 @@ async function tryRefresh() {
     const data = await res.json();
     accessToken = data.access_token;
     refreshToken = data.refresh_token;
+    localStorage.setItem('sg_session_rt', refreshToken); // keep persisted token in sync
     return true;
   } catch {
     return false;
@@ -864,9 +888,12 @@ function handleAuth(data) {
   accessToken = data.access_token;
   refreshToken = data.refresh_token;
   userEmail = data.user.email;
+  localStorage.setItem('sg_session_rt', refreshToken);
+  localStorage.setItem('sg_session_email', userEmail);
   document.getElementById('user-email').textContent = userEmail;
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app-screen').style.display = 'block';
+  document.querySelector('.btn-theme-float').style.display = 'none';
   loadAll();
 }
 
@@ -874,8 +901,11 @@ function logout() {
   accessToken = null;
   refreshToken = null;
   userEmail = null;
+  localStorage.removeItem('sg_session_rt');
+  localStorage.removeItem('sg_session_email');
   document.getElementById('auth-screen').style.display = '';
   document.getElementById('app-screen').style.display = 'none';
+  document.querySelector('.btn-theme-float').style.display = '';
 }
 
 // ── Navigation ──

@@ -35,6 +35,11 @@ type Daemon struct {
 	relayPort  int
 	relayToken []byte // 16 raw bytes
 
+	// Local relay proxy: a UDP proxy on localhost that bridges WireGuard
+	// traffic and keepalives through a single socket to the relay server.
+	// This ensures the keepalive and data packets share one NAT mapping.
+	relayProxyAddr string // "127.0.0.1:<port>" — set when proxy is running
+
 	// Peer state (keyed by base64 public key)
 	mu             sync.RWMutex
 	peersByKey     map[string]api.Peer // pubKey → peer (includes relay info)
@@ -76,16 +81,6 @@ func (d *Daemon) Run(ctx context.Context) error {
 		log.Println("STUN discovery failed, proceeding without public endpoint")
 	}
 
-	// Extract the external WireGuard port for relay keepalives.
-	wgExternalPort := 51820
-	if stunEndpoint != "" {
-		if _, portStr, err := net.SplitHostPort(stunEndpoint); err == nil {
-			if p, err := strconv.Atoi(portStr); err == nil {
-				wgExternalPort = p
-			}
-		}
-	}
-
 	// 2. Fetch initial peer list
 	peers, err := d.client.GetPeers(d.cfg.NetworkID)
 	if err != nil {
@@ -109,7 +104,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 
 	// 5. Register with relay (best-effort)
-	d.setupRelay(ctx, wgExternalPort)
+	d.setupRelay(ctx)
 
 	// 6. Run background loops
 	heartbeatTicker := time.NewTicker(heartbeatInterval)
@@ -140,8 +135,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 }
 
 // setupRelay fetches relay info from the control plane, registers this device
-// with the relay server, stores the result, and starts the keepalive goroutine.
-func (d *Daemon) setupRelay(ctx context.Context, wgExternalPort int) {
+// with the relay server, stores the result, and starts the local relay proxy.
+func (d *Daemon) setupRelay(ctx context.Context) {
 	relays, err := d.client.GetRelays()
 	if err != nil || len(relays) == 0 {
 		log.Printf("no relays available: %v", err)
@@ -172,46 +167,129 @@ func (d *Daemon) setupRelay(ctx context.Context, wgExternalPort int) {
 		log.Printf("storing relay endpoint failed: %v", err)
 	}
 
-	go d.runRelayKeepalive(ctx, wgExternalPort)
-}
-
-// runRelayKeepalive sends UDP keepalives to the relay every 25 seconds so the
-// relay can track this device's real address and port.
-func (d *Daemon) runRelayKeepalive(ctx context.Context, wgPort int) {
-	addr := fmt.Sprintf("%s:%d", d.relayHost, d.relayPort)
-	conn, err := net.Dial("udp", addr)
+	// Start a local UDP proxy that bridges WireGuard and the relay through
+	// a single outbound socket. This ensures keepalives and data share one
+	// NAT mapping, so the relay can forward return traffic correctly.
+	proxyAddr, err := d.startRelayProxy(ctx)
 	if err != nil {
-		log.Printf("relay keepalive: dial %s: %v", addr, err)
+		log.Printf("relay proxy failed to start: %v", err)
 		return
 	}
-	defer conn.Close()
+	d.relayProxyAddr = proxyAddr
+	log.Printf("relay proxy listening on %s", proxyAddr)
+}
 
-	// Keepalive packet: [0xFF][port_hi][port_lo][token 16 bytes] = 19 bytes
-	// Embedding the WireGuard listen port so the relay knows where to forward packets.
-	pkt := make([]byte, 19)
-	pkt[0] = 0xFF
-	pkt[1] = byte(wgPort >> 8)
-	pkt[2] = byte(wgPort)
-	copy(pkt[3:], d.relayToken)
-
-	// Send immediately on startup
-	if _, err := conn.Write(pkt); err != nil {
-		log.Printf("relay keepalive: initial write: %v", err)
+// startRelayProxy creates a local UDP proxy that:
+//  1. Listens on a random localhost port for WireGuard data from the local
+//     wireguard-go device.
+//  2. Connects to the relay server from a single outbound socket.
+//  3. Sends periodic keepalive packets to the relay through that socket.
+//  4. Forwards WireGuard packets from localhost to the relay and back.
+//
+// Because keepalives and WireGuard data share the same outbound socket,
+// they share the same NAT mapping. The relay sets homeAddr to this socket's
+// public address, and all forwarded packets return through the same NAT hole.
+//
+// Returns the "127.0.0.1:<port>" address that WireGuard should use as the
+// peer endpoint when relaying through this device's slot.
+func (d *Daemon) startRelayProxy(ctx context.Context) (string, error) {
+	// Outbound socket to relay server (single NAT mapping for keepalive + data)
+	relayAddr := fmt.Sprintf("%s:%d", d.relayHost, d.relayPort)
+	remoteAddr, err := net.ResolveUDPAddr("udp", relayAddr)
+	if err != nil {
+		return "", fmt.Errorf("resolving relay address %s: %w", relayAddr, err)
+	}
+	outbound, err := net.DialUDP("udp", nil, remoteAddr)
+	if err != nil {
+		return "", fmt.Errorf("dialing relay %s: %w", relayAddr, err)
 	}
 
-	ticker := time.NewTicker(relayKeepaliveInterval)
-	defer ticker.Stop()
+	// Local listener for WireGuard traffic
+	local, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		outbound.Close()
+		return "", fmt.Errorf("listening on localhost: %w", err)
+	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if _, err := conn.Write(pkt); err != nil {
-				log.Printf("relay keepalive: write: %v", err)
+	localAddr := local.LocalAddr().String()
+
+	// Build keepalive packet: [0xFF][0x00][0x00][token 16 bytes] = 19 bytes
+	// The two reserved bytes after 0xFF are no longer used for port embedding.
+	keepalive := make([]byte, 19)
+	keepalive[0] = 0xFF
+	keepalive[1] = 0x00
+	keepalive[2] = 0x00
+	copy(keepalive[3:], d.relayToken)
+
+	// Send initial keepalive
+	if _, err := outbound.Write(keepalive); err != nil {
+		log.Printf("relay proxy: initial keepalive: %v", err)
+	}
+
+	// Track the WireGuard device's local address (set on first packet from it)
+	var wgAddr *net.UDPAddr
+	var wgAddrMu sync.Mutex
+
+	// Goroutine: relay -> local WireGuard
+	go func() {
+		defer local.Close()
+		defer outbound.Close()
+		buf := make([]byte, 1500)
+		for {
+			n, err := outbound.Read(buf)
+			if err != nil {
+				return
+			}
+			wgAddrMu.Lock()
+			dst := wgAddr
+			wgAddrMu.Unlock()
+			if dst != nil {
+				local.WriteTo(buf[:n], dst)
 			}
 		}
-	}
+	}()
+
+	// Goroutine: local WireGuard -> relay + periodic keepalives
+	go func() {
+		ticker := time.NewTicker(relayKeepaliveInterval)
+		defer ticker.Stop()
+
+		// Set a read deadline so we can check ctx and send keepalives
+		buf := make([]byte, 1500)
+		for {
+			select {
+			case <-ctx.Done():
+				local.Close()
+				outbound.Close()
+				return
+			case <-ticker.C:
+				if _, err := outbound.Write(keepalive); err != nil {
+					log.Printf("relay proxy: keepalive: %v", err)
+				}
+			default:
+				local.SetReadDeadline(time.Now().Add(1 * time.Second))
+				n, addr, err := local.ReadFrom(buf)
+				if err != nil {
+					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						continue
+					}
+					return
+				}
+				// Remember the WireGuard device's address for return traffic
+				if udpAddr, ok := addr.(*net.UDPAddr); ok {
+					wgAddrMu.Lock()
+					wgAddr = udpAddr
+					wgAddrMu.Unlock()
+				}
+				// Forward to relay
+				if _, err := outbound.Write(buf[:n]); err != nil {
+					log.Printf("relay proxy: forward to relay: %v", err)
+				}
+			}
+		}
+	}()
+
+	return localAddr, nil
 }
 
 // checkConnectivity inspects WireGuard handshake times and switches peers
@@ -334,18 +412,32 @@ func (d *Daemon) storePeers(peers []api.Peer) {
 	}
 }
 
-// sharedRelayEndpoint returns the relay endpoint both this device and the peer
-// should use for WireGuard traffic. Both devices must send to the same relay
-// port so each punches a NAT hole allowing the relay to reach them back.
-// We deterministically pick the relay port of the device with the lower IP.
+// sharedRelayEndpoint returns the endpoint that WireGuard should use to reach
+// the given peer via relay. Both devices converge on the same relay port
+// (belonging to the device with the lower WireGuard IP).
+//
+// If this device is the "home" device for the chosen relay slot (i.e., our IP
+// is lower), WireGuard sends to the local relay proxy instead of directly to
+// the relay. The proxy bridges traffic through a single outbound socket that
+// also handles keepalives, ensuring they share one NAT mapping.
+//
+// If this device is the "peer" for the slot (our IP is higher), WireGuard
+// sends directly to the relay. The relay learns our address from the data
+// packets and the NAT mapping is maintained by WireGuard's own packets.
 func (d *Daemon) sharedRelayEndpoint(peer api.Peer) string {
 	myIP := net.ParseIP(d.cfg.AssignedIP)
 	peerIP := net.ParseIP(peer.AssignedIP)
 	if netIPLess(myIP, peerIP) {
-		// My IP is lower — use my relay port
+		// My IP is lower — use my relay port. Route through local proxy
+		// so keepalives and data share the same NAT mapping.
+		if d.relayProxyAddr != "" {
+			return d.relayProxyAddr
+		}
 		return d.relayHost + ":" + strconv.Itoa(d.relayPort)
 	}
-	// Peer's IP is lower — use peer's relay port
+	// Peer's IP is lower — use peer's relay port directly.
+	// We are the "peer" for this slot; the relay will learn our address
+	// from our WireGuard packets.
 	return peer.RelayHost + ":" + strconv.Itoa(peer.RelayPort)
 }
 

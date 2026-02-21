@@ -120,8 +120,17 @@ func (s *RelayServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 // serve runs the per-device UDP relay loop.
-// Keepalive packets (0xFF prefix + 16-byte token) update the device's real address.
-// All other packets are forwarded to the device's last-known real address.
+//
+// The slot owner ("home" device) maintains a local UDP proxy that sends both
+// keepalive packets and WireGuard data through a single socket to this relay
+// port. This ensures a single NAT mapping for both control and data traffic.
+//
+// Keepalive packets (0xFF prefix + 16-byte token) authenticate the home device
+// and update homeAddr to the actual source address of the keepalive packet.
+//
+// All other packets are forwarded bidirectionally:
+//   - Packets from homeAddr -> peerAddr
+//   - Packets from anyone else -> homeAddr (sender becomes peerAddr)
 func (slot *RelaySlot) serve(conn net.PacketConn) {
 	defer conn.Close()
 	buf := make([]byte, 1500)
@@ -137,16 +146,22 @@ func (slot *RelaySlot) serve(conn net.PacketConn) {
 		}
 
 		if n == 19 && buf[0] == 0xFF && bytes.Equal(buf[3:19], slot.token[:]) {
-			// Keepalive: [0xFF][port_hi][port_lo][token 16 bytes]
-			// Use source IP + embedded WireGuard port as homeAddr.
-			wgPort := int(buf[1])<<8 | int(buf[2])
+			// Keepalive: [0xFF][2 reserved bytes][token 16 bytes]
+			// Set homeAddr to the actual source address of the keepalive.
+			// Since the client sends keepalives and WireGuard data through
+			// the same local proxy socket, this address matches where data
+			// packets from the home device will arrive from.
 			slot.mu.Lock()
-			slot.homeAddr = &net.UDPAddr{IP: udpAddr.IP, Port: wgPort}
+			prev := slot.homeAddr
+			slot.homeAddr = &net.UDPAddr{IP: udpAddr.IP, Port: udpAddr.Port}
 			slot.lastSeen = time.Now()
 			slot.mu.Unlock()
+			if prev == nil || !prev.IP.Equal(udpAddr.IP) || prev.Port != udpAddr.Port {
+				log.Printf("relay port %s: homeAddr set to %s (from keepalive)", conn.LocalAddr(), udpAddr)
+			}
 		} else {
 			// Data packet: bidirectional forwarding.
-			// Packets from homeAddr → peerAddr; packets from anywhere else → homeAddr.
+			// Packets from homeAddr -> peerAddr; packets from anyone else -> homeAddr.
 			slot.mu.Lock()
 			home := slot.homeAddr
 			peer := slot.peerAddr
@@ -159,6 +174,7 @@ func (slot *RelaySlot) serve(conn net.PacketConn) {
 				dst = home
 			}
 			slot.mu.Unlock()
+			log.Printf("relay port %s: pkt from %s fromHome=%v dst=%v len=%d", conn.LocalAddr(), udpAddr, fromHome, dst, n)
 			if dst != nil {
 				conn.WriteTo(buf[:n], dst)
 			}

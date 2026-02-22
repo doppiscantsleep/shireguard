@@ -30,3 +30,6 @@ new_sqlite_classes = ["SignalingRoom"]
 [[kv_namespaces]]
 binding = "KV"
 id = "e0fc4179e9894bbc9b6c42b2b7c6c276"
+
+[triggers]
+crons = ["0 3 * * *"]  # 3am UTC daily

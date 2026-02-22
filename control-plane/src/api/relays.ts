@@ -41,7 +41,11 @@ relays.post('/register', async (c) => {
     },
     body: JSON.stringify({ device_id }),
   });
-  if (!resp.ok) return c.json({ error: 'relay registration failed' }, 502);
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    console.error(`relay registration failed: relay returned ${resp.status}: ${body}`);
+    return c.json({ error: `relay registration failed: relay returned ${resp.status}: ${body}` }, 502);
+  }
 
   const data = await resp.json();
   return c.json(data);

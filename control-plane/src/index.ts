@@ -89,6 +89,16 @@ app.get('/v1/signal/:network_id', authMiddleware, async (c) => {
   return stub.fetch(new Request(url.toString(), c.req.raw));
 });
 
+async function pruneOldMetrics(env: Env): Promise<void> {
+  const result = await env.DB.prepare(
+    "DELETE FROM metrics WHERE created_at < datetime('now', '-7 days')"
+  ).run();
+  console.log(`[cron] pruned ${result.meta.changes} old metrics rows`);
+}
+
 export default {
   fetch: app.fetch,
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(pruneOldMetrics(env));
+  },
 };

@@ -9,6 +9,7 @@ bin/
 
 # Go
 client/shireguard
+client/shireguard-menubar
 relay/shireguard-relay
 
 # Environment

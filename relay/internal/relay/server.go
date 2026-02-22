@@ -44,40 +44,47 @@ type RelayServer struct {
 	mu          sync.RWMutex
 	slots       map[int]*RelaySlot // relay_port → slot
 	tokenToPort map[string]int     // hex(token) → relay_port
+	udpBase     int                // first UDP port in the relay range
 	nextPort    int
 	freePorts   []int  // evicted ports available for reuse
 	authToken   string // shared secret from --token flag
 	host        string // public hostname/IP of this server
 	metrics     *relayMetrics
+	registry    *prometheus.Registry // per-server registry (avoids global conflicts in tests)
 }
 
 // NewServer creates a RelayServer with the given public host, base UDP port, and auth token.
 func NewServer(host string, udpBase int, authToken string, version, commit string) *RelayServer {
+	// Use a per-server registry so multiple servers can be created in tests
+	// without triggering "duplicate metrics collector" panics on the global registry.
+	reg := prometheus.NewRegistry()
+	factory := promauto.With(reg)
+
 	m := &relayMetrics{
-		slotsRegistered: promauto.NewCounter(prometheus.CounterOpts{
+		slotsRegistered: factory.NewCounter(prometheus.CounterOpts{
 			Name: "shireguard_relay_slots_registered_total",
 			Help: "Total relay slots registered since startup.",
 		}),
-		slotsEvicted: promauto.NewCounter(prometheus.CounterOpts{
+		slotsEvicted: factory.NewCounter(prometheus.CounterOpts{
 			Name: "shireguard_relay_slots_evicted_total",
 			Help: "Total relay slots evicted due to inactivity.",
 		}),
-		keepalives: promauto.NewCounter(prometheus.CounterOpts{
+		keepalives: factory.NewCounter(prometheus.CounterOpts{
 			Name: "shireguard_relay_keepalives_total",
 			Help: "Total keepalive packets received.",
 		}),
-		packetsForwarded: promauto.NewCounter(prometheus.CounterOpts{
+		packetsForwarded: factory.NewCounter(prometheus.CounterOpts{
 			Name: "shireguard_relay_packets_forwarded_total",
 			Help: "Total UDP packets forwarded between peers.",
 		}),
-		bytesForwarded: promauto.NewCounter(prometheus.CounterOpts{
+		bytesForwarded: factory.NewCounter(prometheus.CounterOpts{
 			Name: "shireguard_relay_bytes_forwarded_total",
 			Help: "Total bytes forwarded between peers.",
 		}),
 	}
 
 	// Build info — version/commit as labels, value always 1.
-	promauto.NewGaugeVec(prometheus.GaugeOpts{
+	factory.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "shireguard_relay_build_info",
 		Help: "Relay build information.",
 	}, []string{"version", "commit"}).With(prometheus.Labels{
@@ -88,14 +95,16 @@ func NewServer(host string, udpBase int, authToken string, version, commit strin
 	s := &RelayServer{
 		slots:       make(map[int]*RelaySlot),
 		tokenToPort: make(map[string]int),
+		udpBase:     udpBase,
 		nextPort:    udpBase,
 		authToken:   authToken,
 		host:        host,
 		metrics:     m,
+		registry:    reg,
 	}
 
 	// GaugeFuncs read live state at every Prometheus scrape.
-	prometheus.MustRegister(prometheus.NewGaugeFunc(
+	reg.MustRegister(prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name: "shireguard_relay_active_slots",
 			Help: "Current number of registered relay slots.",
@@ -106,7 +115,7 @@ func NewServer(host string, udpBase int, authToken string, version, commit strin
 			return float64(len(s.slots))
 		},
 	))
-	prometheus.MustRegister(prometheus.NewGaugeFunc(
+	reg.MustRegister(prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name: "shireguard_relay_active_pairs",
 			Help: "Relay slots where both the home and peer endpoints are established.",
@@ -138,8 +147,9 @@ func NewServer(host string, udpBase int, authToken string, version, commit strin
 func (s *RelayServer) ListenAndServe(addr string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.HandleFunc("GET /status", s.handleStatus)
 	mux.HandleFunc("POST /register", s.handleRegister)
-	mux.Handle("GET /metrics", promhttp.Handler())
+	mux.Handle("GET /metrics", promhttp.HandlerFor(s.registry, promhttp.HandlerOpts{}))
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           mux,
@@ -155,6 +165,39 @@ func (s *RelayServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, `{"status":"ok"}`)
+}
+
+// statusResponse is the JSON body returned by GET /status.
+type statusResponse struct {
+	ActiveSlots    int     `json:"active_slots"`
+	RecycledFree   int     `json:"recycled_free"`
+	Capacity       int     `json:"capacity"`
+	UtilizationPct float64 `json:"utilization_pct"`
+	Warning        string  `json:"warning,omitempty"`
+}
+
+const slotCapacity = 1000 // firewall allows 1000 UDP ports (udpBase through udpBase+999)
+
+func (s *RelayServer) handleStatus(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	active := len(s.slots)
+	recycled := len(s.freePorts)
+	s.mu.RUnlock()
+
+	utilPct := float64(active) / float64(slotCapacity) * 100
+
+	resp := statusResponse{
+		ActiveSlots:    active,
+		RecycledFree:   recycled,
+		Capacity:       slotCapacity,
+		UtilizationPct: utilPct,
+	}
+	if utilPct > 80 {
+		resp.Warning = fmt.Sprintf("relay at %.0f%% capacity — %d/%d slots in use", utilPct, active, slotCapacity)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (s *RelayServer) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -294,27 +337,32 @@ func (s *RelayServer) cleanupLoop() {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 	for range ticker.C {
-		cutoff := time.Now().Add(-30 * time.Minute)
-		s.mu.Lock()
-		for port, slot := range s.slots {
-			slot.mu.Lock()
-			stale := slot.lastSeen.Before(cutoff)
-			slot.mu.Unlock()
-			if stale {
-				log.Printf("evicting stale relay slot on port %d (recycling)", port)
-				// Close the socket — unblocks serve()'s ReadFrom so the
-				// goroutine exits cleanly. The deferred conn.Close() in
-				// serve() is a no-op on an already-closed conn.
-				if slot.conn != nil {
-					slot.conn.Close()
-				}
-				delete(s.slots, port)
-				tokenHex := hex.EncodeToString(slot.token[:])
-				delete(s.tokenToPort, tokenHex)
-				s.freePorts = append(s.freePorts, port) // recycle for reuse
-				s.metrics.slotsEvicted.Inc()
+		s.evictStale(time.Now().Add(-30 * time.Minute))
+	}
+}
+
+// evictStale removes all slots whose lastSeen is before cutoff.
+// Separated from cleanupLoop so it can be called directly in tests.
+func (s *RelayServer) evictStale(cutoff time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for port, slot := range s.slots {
+		slot.mu.Lock()
+		stale := slot.lastSeen.Before(cutoff)
+		slot.mu.Unlock()
+		if stale {
+			log.Printf("evicting stale relay slot on port %d (recycling)", port)
+			// Close the socket — unblocks serve()'s ReadFrom so the
+			// goroutine exits cleanly. The deferred conn.Close() in
+			// serve() is a no-op on an already-closed conn.
+			if slot.conn != nil {
+				slot.conn.Close()
 			}
+			delete(s.slots, port)
+			tokenHex := hex.EncodeToString(slot.token[:])
+			delete(s.tokenToPort, tokenHex)
+			s.freePorts = append(s.freePorts, port) // recycle for reuse
+			s.metrics.slotsEvicted.Inc()
 		}
-		s.mu.Unlock()
 	}
 }

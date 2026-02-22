@@ -16,6 +16,26 @@ builds:
       - arm64
       - amd64
 
+  - id: shireguard-menubar
+    dir: client
+    main: ./cmd/shireguard-menubar
+    binary: shireguard-menubar
+    env:
+      - CGO_ENABLED=1
+    ldflags:
+      - -s -w
+    goos:
+      - darwin
+    goarch:
+      - arm64
+      - amd64
+    overrides:
+      - goos: darwin
+        goarch: amd64
+        env:
+          - CGO_ENABLED=1
+          - CC=clang -arch x86_64
+
   - id: shireguard-relay
     dir: relay
     main: ./cmd/shireguard-relay
@@ -34,6 +54,7 @@ archives:
   - id: client
     builds:
       - shireguard
+      - shireguard-menubar
     name_template: "shireguard_{{ .Os }}_{{ .Arch }}"
     formats:
       - tar.gz
@@ -58,6 +79,28 @@ brews:
     directory: Formula
     install: |
       bin.install "shireguard"
+      bin.install "shireguard-menubar"
+      # Wrap shireguard-menubar into an .app bundle in the prefix
+      app_bundle = prefix/"ShireguardMenuBar.app/Contents/MacOS"
+      app_bundle.mkpath
+      (prefix/"ShireguardMenuBar.app/Contents").install_symlink bin/"shireguard-menubar" => "MacOS/shireguard-menubar"
+      (prefix/"ShireguardMenuBar.app/Contents/Info.plist").write <<~PLIST
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+          "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleName</key><string>ShireguardMenuBar</string>
+            <key>CFBundleDisplayName</key><string>Shireguard</string>
+            <key>CFBundleIdentifier</key><string>com.shireguard.menubar</string>
+            <key>CFBundleVersion</key><string>1</string>
+            <key>CFBundleExecutable</key><string>shireguard-menubar</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>LSUIElement</key><true/>
+            <key>NSHighResolutionCapable</key><true/>
+        </dict>
+        </plist>
+      PLIST
     test: |
       system "#{bin}/shireguard", "--version"
 

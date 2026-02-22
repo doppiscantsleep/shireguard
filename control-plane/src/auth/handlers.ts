@@ -188,7 +188,7 @@ async function verifyRSAIdToken(
   jwksUrl: string,
   label: string,
   expectedAud: string,
-  expectedIss: string,
+  expectedIss: string | string[],
 ): Promise<{ sub: string; email?: string }> {
   const parts = idToken.split('.');
   if (parts.length !== 3) throw new Error('Invalid id_token format');
@@ -199,7 +199,8 @@ async function verifyRSAIdToken(
   // Validate standard claims before touching JWKS
   const now = Math.floor(Date.now() / 1000);
   if (payloadJson.exp < now) throw new Error(`${label} id_token has expired`);
-  if (payloadJson.iss !== expectedIss) throw new Error(`${label} id_token has unexpected issuer`);
+  const allowedIss = Array.isArray(expectedIss) ? expectedIss : [expectedIss];
+  if (!allowedIss.includes(payloadJson.iss)) throw new Error(`${label} id_token has unexpected issuer`);
   // Apple may return aud as the service ID string; Google returns the client ID
   const aud = Array.isArray(payloadJson.aud) ? payloadJson.aud : [payloadJson.aud];
   if (!aud.includes(expectedAud)) throw new Error(`${label} id_token has unexpected audience`);
@@ -243,7 +244,7 @@ function verifyGoogleIdToken(idToken: string, env: Env) {
     'https://www.googleapis.com/oauth2/v3/certs',
     'Google',
     env.GOOGLE_CLIENT_ID,
-    'accounts.google.com',
+    ['accounts.google.com', 'https://accounts.google.com'],
   );
 }
 
@@ -670,6 +671,11 @@ auth.get('/github/callback', async (c) => {
       await c.env.DB.prepare('UPDATE users SET github_id = ? WHERE id = ?')
         .bind(githubId, user.id)
         .run();
+      c.executionCtx.waitUntil(fetch(c.env.DISCORD_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: `🔗 Existing user linked GitHub: ${user.email} (@${ghUser.login})` }),
+      }));
     }
   }
 
@@ -755,6 +761,32 @@ auth.get('/poll', async (c) => {
   await c.env.KV.delete(`cli_session:${sessionId}`);
   const tokens = JSON.parse(data) as { access_token: string; refresh_token: string; email: string };
   return c.json({ status: 'complete', ...tokens });
+});
+
+// GET /me — returns current user's profile and linked providers
+auth.get('/me', authMiddleware, async (c) => {
+  const userId = c.get('userId');
+  const user = await c.env.DB.prepare(
+    'SELECT email, apple_sub, google_sub, github_id, created_at FROM users WHERE id = ?'
+  ).bind(userId).first<{
+    email: string;
+    apple_sub: string | null;
+    google_sub: string | null;
+    github_id: string | null;
+    created_at: string;
+  }>();
+
+  if (!user) return c.json({ error: 'User not found' }, 404);
+
+  return c.json({
+    email: user.email,
+    providers: {
+      apple: !!user.apple_sub,
+      google: !!user.google_sub,
+      github: !!user.github_id,
+    },
+    created_at: user.created_at,
+  });
 });
 
 export { auth };

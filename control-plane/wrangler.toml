@@ -5,6 +5,11 @@ compatibility_date = "2025-02-14"
 [[rules]]
 type = "Text"
 globs = ["**/*.html"]
+fallthrough = true
+
+[[rules]]
+type = "Text"
+globs = ["**/*.sh"]
 fallthrough = false
 
 [[d1_databases]]

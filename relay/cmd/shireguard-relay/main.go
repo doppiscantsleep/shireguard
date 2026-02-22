@@ -34,7 +34,7 @@ func main() {
 		log.Fatal("--host flag is required")
 	}
 
-	srv := relay.NewServer(*host, *udpBase, *token)
-	log.Printf("Starting shireguard relay on %s: HTTP :%d, UDP base :%d", *host, *port, *udpBase)
+	srv := relay.NewServer(*host, *udpBase, *token, version, commit)
+	log.Printf("Starting shireguard relay %s on %s: HTTP :%d, UDP base :%d", version, *host, *port, *udpBase)
 	log.Fatal(srv.ListenAndServe(fmt.Sprintf(":%d", *port)))
 }

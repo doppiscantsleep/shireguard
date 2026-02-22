@@ -102,8 +102,21 @@ body{
 .auth-subtitle{color:var(--text-secondary);font-size:.85rem;margin-bottom:2rem;font-family:var(--font-sans)}
 .auth-box{
   background:var(--bg-surface);border:1px solid var(--border);
-  padding:2rem;border-radius:var(--radius);
+  border-radius:var(--radius);overflow:hidden;position:relative;
 }
+.auth-box-content{padding:1.75rem 2rem 1.5rem}
+.auth-signin-label{
+  font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--text-muted);text-align:center;margin-bottom:1.2rem;
+}
+.auth-btn-group{display:flex;flex-direction:column;gap:.45rem}
+.auth-mountains{position:relative;height:86px}
+.auth-mountains svg{position:absolute;inset:0;width:100%;height:100%}
+.auth-mountains-fade{
+  position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(to bottom,var(--bg-surface) 0%,transparent 45%);
+}
+[data-theme="light"] .auth-mountains svg{opacity:.15;filter:brightness(1.4)}
 .form-group{margin-bottom:1rem}
 .form-label{
   display:block;font-size:.75rem;font-weight:600;
@@ -439,30 +452,33 @@ body{
 }
 .auth-divider::before{left:0}
 .auth-divider::after{right:0}
-.btn-apple,.btn-google{
+.auth-btn{
   display:flex;align-items:center;justify-content:center;gap:.6rem;
-  width:100%;padding:.65rem 1.2rem;
-  font-family:var(--font-sans);font-size:.85rem;font-weight:600;
-  cursor:pointer;text-decoration:none;transition:background .15s;
-  border-radius:var(--radius);
+  width:100%;height:2.6rem;padding:0 1.25rem;
+  font-family:var(--font-sans);font-size:.855rem;font-weight:500;letter-spacing:.012em;
+  cursor:pointer;text-decoration:none;border-radius:4px;
+  transition:box-shadow .18s, filter .18s;
 }
-.btn-apple{
-  background:#000;color:#fff;border:1px solid #333;
-  margin-bottom:.6rem;
-}
-.btn-apple:hover{background:#1a1a1a}
-[data-theme="light"] .btn-apple{background:#fff;color:#1a1a1a;border-color:var(--border)}
-[data-theme="light"] .btn-apple:hover{background:var(--bg-elevated)}
-.btn-google{background:#fff;color:#3c4043;border:1px solid #dadce0;margin-bottom:.6rem}
-.btn-google:hover{background:#f8f9fa}
-[data-theme="dark"] .btn-google{background:#131314;color:#e3e3e3;border-color:#3c4043}
-[data-theme="dark"] .btn-google:hover{background:#1e1e1e}
-.btn-github{background:#24292f;color:#fff;border:1px solid #24292f}
-.btn-github:hover{background:#32383f}
-[data-theme="light"] .btn-github{background:#24292f;color:#fff}
-[data-theme="light"] .btn-github:hover{background:#32383f}
+.auth-btn:hover{box-shadow:0 0 0 2px rgba(125,193,66,.35),0 2px 10px rgba(0,0,0,.18)}
+.btn-apple{background:#111;color:#fff;border:1px solid #2c2c2c}
+.btn-apple:hover{filter:brightness(1.12)}
+[data-theme="light"] .btn-apple{background:#fff;color:#1a1a1a;border-color:#ccc}
+.btn-google{background:#fff;color:#3c4043;border:1px solid #dadce0}
+[data-theme="dark"] .btn-google{background:#1c1c1c;color:#e4e4e4;border-color:#363636}
+.btn-google:hover{filter:brightness(1.08)}
+.btn-github{background:#22272e;color:#cdd9e5;border:1px solid #444c56}
+.btn-github:hover{filter:brightness(1.14)}
 
 /* ── Get Started Page ── */
+.setup-os-tabs{display:flex;gap:.4rem;margin-bottom:1.25rem}
+.setup-os-tab{
+  display:flex;align-items:center;gap:.45rem;
+  padding:.4rem .9rem;border-radius:var(--radius);border:1px solid var(--border);
+  background:var(--bg-surface);color:var(--text-secondary);font-size:.82rem;
+  font-weight:500;cursor:pointer;font-family:var(--font-sans);transition:all .15s;
+}
+.setup-os-tab:hover{color:var(--text-primary);border-color:var(--border-focus)}
+.setup-os-tab.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
 .setup-steps{display:flex;flex-direction:column;gap:.85rem;max-width:640px}
 .setup-step{
   background:var(--bg-surface);border:1px solid var(--border);
@@ -496,6 +512,60 @@ body{
 }
 .btn-copy:hover{color:var(--text-primary)}
 .btn-copy.copied{color:var(--accent)}
+
+/* ── Account Page ── */
+.account-grid{display:flex;flex-direction:column;gap:1rem;max-width:520px}
+.account-panel{padding:1.25rem 1.5rem}
+.account-panel-title{font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:1rem}
+.account-row{display:flex;align-items:center;justify-content:space-between;padding:.55rem 0;border-bottom:1px solid var(--border)}
+.account-row:last-child{border-bottom:none}
+.account-label{font-size:.85rem;color:var(--text-secondary);display:flex;align-items:center}
+.account-value{font-size:.85rem;color:var(--text-primary)}
+.provider-badge{font-size:.75rem;font-weight:600;padding:.2rem .6rem;border-radius:20px;letter-spacing:.03em}
+.provider-badge.connected{background:var(--green-dim);color:var(--green);border:1px solid rgba(92,184,92,.25)}
+.provider-badge.not-connected{background:var(--bg-elevated);color:var(--text-muted);border:1px solid var(--border)}
+
+/* ── How It Works Page ── */
+.tech-page{max-width:820px}
+.tech-intro{color:var(--text-secondary);font-size:.875rem;line-height:1.8;margin-bottom:1.5rem;max-width:660px}
+.tech-section{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:.85rem;overflow:hidden}
+.tech-section-header{display:flex;align-items:center;gap:.75rem;padding:.9rem 1.25rem;border-bottom:1px solid var(--border);background:var(--bg-elevated)}
+.tech-section-icon{font-size:1rem;flex-shrink:0}
+.tech-section-title{font-weight:600;font-size:.9rem;color:var(--text-primary)}
+.tech-section-badge{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:.15rem .45rem;border-radius:20px;margin-left:auto;flex-shrink:0}
+.tech-section-badge.green{background:var(--green-dim);color:var(--green);border:1px solid rgba(92,184,92,.2)}
+.tech-section-badge.blue{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(91,141,217,.2)}
+.tech-section-badge.amber{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(212,165,32,.2)}
+.tech-section-body{padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:.9rem}
+.tech-p{color:var(--text-secondary);font-size:.84rem;line-height:1.8;margin:0}
+.tech-p strong{color:var(--text-primary);font-weight:600}
+.tech-tag{font-family:var(--font-mono);font-size:.72rem;background:var(--accent-dim);color:var(--accent);padding:.1rem .38rem;border-radius:2px;white-space:nowrap}
+.tech-tag.amber{background:var(--amber-dim);color:var(--amber)}
+.tech-tag.blue{background:var(--blue-dim);color:var(--blue)}
+.tech-tag.red{background:var(--red-dim);color:var(--red)}
+.tech-tag.muted{background:var(--bg-elevated);color:var(--text-muted);border:1px solid var(--border)}
+.tech-flow{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;padding:.8rem 1rem;background:var(--bg-elevated);border-radius:var(--radius);border:1px solid var(--border)}
+.tech-flow-box{font-family:var(--font-mono);font-size:.72rem;background:var(--bg-surface);border:1px solid var(--border);border-radius:2px;padding:.25rem .55rem;color:var(--text-primary);white-space:nowrap}
+.tech-flow-box.accent{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.tech-flow-box.amber{border-color:var(--amber);color:var(--amber);background:var(--amber-dim)}
+.tech-flow-box.blue{border-color:var(--blue);color:var(--blue);background:var(--blue-dim)}
+.tech-flow-box.red{border-color:var(--red);color:var(--red);background:var(--red-dim)}
+.tech-flow-arrow{color:var(--text-muted);font-size:.85rem;flex-shrink:0}
+.tech-flow-label{font-size:.65rem;color:var(--text-muted);padding:.25rem .55rem;font-style:italic}
+.tech-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+@media(max-width:600px){.tech-grid{grid-template-columns:1fr}}
+.tech-grid-item{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem 1rem}
+.tech-grid-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:.3rem}
+.tech-grid-value{font-size:.82rem;color:var(--text-secondary);line-height:1.65}
+.tech-grid-value .tech-tag{vertical-align:middle}
+.tech-note{background:var(--accent-dim);border-left:3px solid var(--accent);border-radius:0 var(--radius) var(--radius) 0;padding:.65rem 1rem;font-size:.8rem;color:var(--text-secondary);line-height:1.7}
+.tech-note.amber{background:var(--amber-dim);border-left-color:var(--amber)}
+.tech-note strong{color:var(--text-primary)}
+.tech-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.tech-table th{font-weight:600;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);text-align:left;padding:.4rem .6rem;border-bottom:1px solid var(--border)}
+.tech-table td{padding:.45rem .6rem;border-bottom:1px solid rgba(125,193,66,.05);color:var(--text-secondary);vertical-align:top;line-height:1.6}
+.tech-table tr:last-child td{border-bottom:none}
+.tech-table td:first-child{font-family:var(--font-mono);font-size:.75rem;color:var(--text-primary);white-space:nowrap}
 
 /* ── About Page ── */
 .about-hero{
@@ -557,18 +627,82 @@ body{
     <div class="auth-logo">shireguard</div>
     <div class="auth-subtitle">WireGuard tunnels for the Free Folk of the network</div>
     <div class="auth-box">
-      <a href="/v1/auth/apple" class="btn btn-apple">
-        <svg width="17" height="17" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.05 9.09c-.02-2.02 1.65-3 1.72-3.04-0.94-1.37-2.39-1.56-2.91-1.58-1.24-.13-2.43.74-3.06.74-.63 0-1.6-.72-2.63-.7-1.35.02-2.6.79-3.29 2-1.41 2.44-.36 6.06 1.01 8.04.67.97 1.47 2.06 2.52 2.02 1.01-.04 1.4-.65 2.62-.65 1.22 0 1.57.65 2.64.63 1.09-.02 1.78-.99 2.44-1.97.78-1.13 1.1-2.23 1.11-2.29-.02-.01-2.15-.83-2.17-3.2zM11.97 3.1C12.51 2.44 12.88 1.52 12.77.58c-.78.04-1.73.52-2.29 1.17-.5.57-.94 1.5-.82 2.38.87.07 1.76-.44 2.31-1.03z" fill="currentColor"/></svg>
-        Sign in with Apple
-      </a>
-      <a href="/v1/auth/google" class="btn btn-google">
-        <svg width="17" height="17" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
-        Sign in with Google
-      </a>
-      <a href="/v1/auth/github" class="btn btn-github">
-        <svg width="17" height="17" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" fill="currentColor"/></svg>
-        Sign in with GitHub
-      </a>
+      <div class="auth-box-content">
+        <div class="auth-signin-label">Sign in to continue</div>
+        <div class="auth-btn-group">
+          <a href="/v1/auth/apple" class="auth-btn btn-apple">
+            <svg width="16" height="16" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.05 9.09c-.02-2.02 1.65-3 1.72-3.04-0.94-1.37-2.39-1.56-2.91-1.58-1.24-.13-2.43.74-3.06.74-.63 0-1.6-.72-2.63-.7-1.35.02-2.6.79-3.29 2-1.41 2.44-.36 6.06 1.01 8.04.67.97 1.47 2.06 2.52 2.02 1.01-.04 1.4-.65 2.62-.65 1.22 0 1.57.65 2.64.63 1.09-.02 1.78-.99 2.44-1.97.78-1.13 1.1-2.23 1.11-2.29-.02-.01-2.15-.83-2.17-3.2zM11.97 3.1C12.51 2.44 12.88 1.52 12.77.58c-.78.04-1.73.52-2.29 1.17-.5.57-.94 1.5-.82 2.38.87.07 1.76-.44 2.31-1.03z" fill="currentColor"/></svg>
+            Continue with Apple
+          </a>
+          <a href="/v1/auth/google" class="auth-btn btn-google">
+            <svg width="16" height="16" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
+            Continue with Google
+          </a>
+          <a href="/v1/auth/github" class="auth-btn btn-github">
+            <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" fill="currentColor"/></svg>
+            Continue with GitHub
+          </a>
+        </div>
+      </div>
+
+      <!-- Fellowship crossing the mountains -->
+      <div class="auth-mountains">
+        <svg viewBox="0 0 400 86" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax slice">
+          <!-- Stars -->
+          <circle cx="28"  cy="10" r=".8" fill="white" opacity=".3"/>
+          <circle cx="72"  cy="6"  r=".7" fill="white" opacity=".28"/>
+          <circle cx="138" cy="9"  r=".9" fill="white" opacity=".3"/>
+          <circle cx="198" cy="4"  r=".7" fill="white" opacity=".22"/>
+          <circle cx="255" cy="11" r=".8" fill="white" opacity=".28"/>
+          <circle cx="335" cy="7"  r=".7" fill="white" opacity=".28"/>
+          <circle cx="382" cy="14" r=".6" fill="white" opacity=".22"/>
+          <!-- Crescent moon -->
+          <circle cx="368" cy="17" r="8.5" fill="#d4a820" opacity=".55"/>
+          <circle cx="372" cy="15" r="7"   fill="#0c1a08"/>
+          <!-- Far mountain range -->
+          <path d="M0 86 L0 44 L18 28 L38 40 L62 16 L88 38 L108 22 L132 42 L158 12 L182 36 L208 20 L232 40 L258 26 L282 44 L308 18 L332 40 L358 30 L382 46 L400 36 L400 86Z" fill="#162808" opacity=".32"/>
+          <!-- Snow caps -->
+          <path d="M62 16 L57 25 L67 25Z"   fill="#8ab888" opacity=".18"/>
+          <path d="M108 22 L103 31 L113 31Z" fill="#8ab888" opacity=".18"/>
+          <path d="M158 12 L153 22 L163 22Z" fill="#8ab888" opacity=".18"/>
+          <path d="M308 18 L303 28 L313 28Z" fill="#8ab888" opacity=".18"/>
+          <!-- Mid mountains -->
+          <path d="M0 86 L0 56 L32 44 L68 58 L108 44 L144 60 L180 46 L216 62 L252 48 L288 62 L324 50 L358 62 L390 54 L400 60 L400 86Z" fill="#1a3010" opacity=".58"/>
+          <!-- Near ridge -->
+          <path d="M0 86 Q80 76 160 72 Q240 68 320 70 Q365 72 400 74 L400 86Z" fill="#1e3a0e" opacity=".82"/>
+          <!-- ── The Fellowship ── -->
+          <!-- All figures: dark silhouette, positioned on the ridge -->
+          <!-- Gandalf (tallest, with staff) -->
+          <ellipse cx="100" cy="67.5" rx="1.3" ry="4.5" fill="#0c1e08" opacity=".92"/>
+          <circle  cx="100" cy="62.6" r="1.4"           fill="#0c1e08" opacity=".92"/>
+          <line x1="98.2" y1="72" x2="96.5" y2="65" stroke="#0c1e08" stroke-width=".9" opacity=".8"/>
+          <!-- Aragorn -->
+          <ellipse cx="112" cy="68"   rx="1.1" ry="4"   fill="#0c1e08" opacity=".9"/>
+          <circle  cx="112" cy="63.6" r="1.2"            fill="#0c1e08" opacity=".9"/>
+          <!-- Legolas -->
+          <ellipse cx="122" cy="68.3" rx="1"   ry="3.8" fill="#0c1e08" opacity=".9"/>
+          <circle  cx="122" cy="64.1" r="1.1"            fill="#0c1e08" opacity=".9"/>
+          <!-- Boromir -->
+          <ellipse cx="131" cy="68.6" rx="1.2" ry="3.8" fill="#0c1e08" opacity=".9"/>
+          <circle  cx="131" cy="64.4" r="1.2"            fill="#0c1e08" opacity=".9"/>
+          <!-- Gimli (shorter, stockier) -->
+          <ellipse cx="140" cy="69"   rx="1.4" ry="3.1" fill="#0c1e08" opacity=".9"/>
+          <circle  cx="140" cy="65.5" r="1.2"            fill="#0c1e08" opacity=".9"/>
+          <!-- Frodo -->
+          <ellipse cx="149" cy="69.3" rx="1"   ry="2.9" fill="#0c1e08" opacity=".9"/>
+          <circle  cx="149" cy="66"   r="1.05"           fill="#0c1e08" opacity=".9"/>
+          <!-- Sam -->
+          <ellipse cx="157" cy="69.5" rx="1.1" ry="2.9" fill="#0c1e08" opacity=".9"/>
+          <circle  cx="157" cy="66.2" r="1.05"           fill="#0c1e08" opacity=".9"/>
+          <!-- Merry -->
+          <ellipse cx="165" cy="69.6" rx="1"   ry="2.8" fill="#0c1e08" opacity=".88"/>
+          <circle  cx="165" cy="66.4" r="1"              fill="#0c1e08" opacity=".88"/>
+          <!-- Pippin -->
+          <ellipse cx="173" cy="69.7" rx="1"   ry="2.8" fill="#0c1e08" opacity=".88"/>
+          <circle  cx="173" cy="66.5" r="1"              fill="#0c1e08" opacity=".88"/>
+        </svg>
+        <div class="auth-mountains-fade"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -615,6 +749,10 @@ body{
     </div>
     <div class="sidebar-section">
       <div class="sidebar-label">Settings</div>
+      <button class="nav-item" data-page="account">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.2"/><path d="M2 14c0-3 2.7-5 6-5s6 2 6 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        Account
+      </button>
       <button class="nav-item" data-page="apikeys">
         <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M10 6a3 3 0 1 0-1.8 2.75L11 11.5h2V10h1.5V8H11l-1-1" stroke="currentColor" stroke-width="1.2"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/></svg>
         API Keys
@@ -622,6 +760,10 @@ body{
     </div>
     <div class="sidebar-section">
       <div class="sidebar-label">The Shire</div>
+      <button class="nav-item" data-page="tech">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="13" cy="8" r="2" stroke="currentColor" stroke-width="1.2"/></svg>
+        How It Works
+      </button>
       <button class="nav-item" data-page="about">
         <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M8 14S3 11 3 7a5 5 0 0 1 10 0c0 4-5 7-5 7z" stroke="currentColor" stroke-width="1.2"/><path d="M8 7v7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
         About
@@ -635,11 +777,24 @@ body{
       <div class="page-header">
         <div>
           <div class="page-title">Get Started</div>
-          <div class="page-desc">Install Shireguard on a Mac in four commands</div>
+          <div class="page-desc">Install Shireguard and join your private network</div>
         </div>
       </div>
 
-      <div class="setup-steps">
+      <!-- OS tabs -->
+      <div class="setup-os-tabs">
+        <button class="setup-os-tab active" onclick="switchOS('macos', this)">
+          <svg width="15" height="15" viewBox="0 0 814 1000" fill="currentColor"><path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-42.3-168.2-107.8c-72.7-75.4-133.1-196.5-133.1-311.5 0-200.6 130.9-307 258.7-307 66.2 0 121.2 43.4 162.7 43.4 39.5 0 101.1-46 176.3-46 28.5 0 130.9 2.6 198.3 99.2zm-234-181.5c31.1-36.9 53.1-88.1 53.1-139.3 0-7.1-.6-14.3-1.9-20.1-50.6 1.9-110.8 33.7-147.1 75.8-28.5 32.4-55.1 83.6-55.1 135.5 0 7.8 1.3 15.6 1.9 18.1 3.2.6 8.4 1.3 13.6 1.3 45.4 0 102.5-30.4 135.5-71.3z"/></svg>
+          macOS
+        </button>
+        <button class="setup-os-tab" onclick="switchOS('linux', this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1C8.167 1 5.5 4.153 5.5 7.5c0 2.121.645 3.812 1.688 5.063C6.46 13.574 6 14.787 6 16c0 1.326.456 2.375 1.094 3.125C6.28 19.696 6 20.326 6 21c0 1.105.895 2 2 2h8c1.105 0 2-.895 2-2 0-.674-.28-1.304-.094-1.875C18.544 18.375 19 17.326 19 16c0-1.213-.46-2.426-1.188-3.438C18.855 11.312 19.5 9.621 19.5 7.5 19.5 4.153 16.833 1 12 1z"/></svg>
+          Linux
+        </button>
+      </div>
+
+      <!-- macOS steps -->
+      <div class="setup-steps" id="setup-macos">
         <div class="setup-step">
           <div class="setup-step-num">1</div>
           <div class="setup-step-body">
@@ -647,27 +802,21 @@ body{
             <div class="setup-step-desc">Requires macOS with <a href="https://brew.sh" target="_blank" style="color:var(--accent)">Homebrew</a> installed.</div>
             <div class="code-block">
               <code>brew install doppiscantsleep/shireguard/shireguard</code>
-              <button class="btn-copy" onclick="copyCode(this)" title="Copy">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>
-              </button>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button>
             </div>
           </div>
         </div>
-
         <div class="setup-step">
           <div class="setup-step-num">2</div>
           <div class="setup-step-body">
             <div class="setup-step-title">Log in</div>
-            <div class="setup-step-desc">Opens your browser for Sign in with Apple or Google. Returns to the terminal when done.</div>
+            <div class="setup-step-desc">Opens your browser for Sign in with Apple, Google, or GitHub. Returns to the terminal when done.</div>
             <div class="code-block">
               <code>shireguard login</code>
-              <button class="btn-copy" onclick="copyCode(this)" title="Copy">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>
-              </button>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button>
             </div>
           </div>
         </div>
-
         <div class="setup-step">
           <div class="setup-step-num">3</div>
           <div class="setup-step-body">
@@ -675,13 +824,10 @@ body{
             <div class="setup-step-desc">Generates a WireGuard key pair and assigns this machine an IP on your private network.</div>
             <div class="code-block">
               <code>shireguard register-device</code>
-              <button class="btn-copy" onclick="copyCode(this)" title="Copy">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>
-              </button>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button>
             </div>
           </div>
         </div>
-
         <div class="setup-step">
           <div class="setup-step-num">4</div>
           <div class="setup-step-body">
@@ -689,9 +835,59 @@ body{
             <div class="setup-step-desc">Connects to your network. Run this on every machine — they'll find each other automatically.</div>
             <div class="code-block">
               <code>shireguard up</code>
-              <button class="btn-copy" onclick="copyCode(this)" title="Copy">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>
-              </button>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Linux steps -->
+      <div class="setup-steps" id="setup-linux" style="display:none">
+        <div class="setup-step">
+          <div class="setup-step-num">1</div>
+          <div class="setup-step-body">
+            <div class="setup-step-title">Install via the installer script</div>
+            <div class="setup-step-desc">Supports <strong>amd64</strong> and <strong>arm64</strong> (including Raspberry Pi). Downloads the latest release, installs to <code style="font-family:var(--font-mono);font-size:.85em">/usr/local/bin</code>, and sets the required capability.</div>
+            <div class="code-block">
+              <code>curl -sSL https://shireguard.com/install.sh | bash</code>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button>
+            </div>
+            <div class="setup-step-desc" style="margin-top:.5rem;font-size:.78rem;color:var(--text-muted)">
+              The installer requires <code style="font-family:var(--font-mono);font-size:.85em">curl</code>, <code style="font-family:var(--font-mono);font-size:.85em">tar</code>, and <code style="font-family:var(--font-mono);font-size:.85em">libcap2-bin</code>.
+              On Debian/Ubuntu: <code style="font-family:var(--font-mono);font-size:.85em">sudo apt install curl tar libcap2-bin</code>
+            </div>
+          </div>
+        </div>
+        <div class="setup-step">
+          <div class="setup-step-num">2</div>
+          <div class="setup-step-body">
+            <div class="setup-step-title">Log in</div>
+            <div class="setup-step-desc">Opens your browser for Sign in with Apple, Google, or GitHub. Returns to the terminal when done.</div>
+            <div class="code-block">
+              <code>shireguard login</code>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="setup-step">
+          <div class="setup-step-num">3</div>
+          <div class="setup-step-body">
+            <div class="setup-step-title">Register this device</div>
+            <div class="setup-step-desc">Generates a WireGuard key pair and assigns this machine an IP on your private network.</div>
+            <div class="code-block">
+              <code>shireguard register-device</code>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="setup-step">
+          <div class="setup-step-num">4</div>
+          <div class="setup-step-body">
+            <div class="setup-step-title">Start the tunnel</div>
+            <div class="setup-step-desc">Connects to your network. Run this on every machine — they'll find each other automatically.</div>
+            <div class="code-block">
+              <code>shireguard up</code>
+              <button class="btn-copy" onclick="copyCode(this)" title="Copy"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button>
             </div>
           </div>
         </div>
@@ -767,6 +963,55 @@ body{
       </div>
     </div>
 
+    <!-- ACCOUNT PAGE -->
+    <div class="page" id="page-account" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Account</div>
+          <div class="page-desc">Your Shire settings and linked sign-in providers</div>
+        </div>
+      </div>
+
+      <div class="account-grid">
+        <div class="panel account-panel">
+          <div class="account-panel-title">Profile</div>
+          <div class="account-row">
+            <span class="account-label">Email</span>
+            <span class="account-value mono" id="acct-email">—</span>
+          </div>
+          <div class="account-row">
+            <span class="account-label">Member since</span>
+            <span class="account-value" id="acct-since">—</span>
+          </div>
+        </div>
+
+        <div class="panel account-panel">
+          <div class="account-panel-title">Sign-in Providers</div>
+          <div class="account-row">
+            <span class="account-label">
+              <svg width="16" height="16" viewBox="0 0 814 1000" fill="currentColor" style="vertical-align:middle;margin-right:6px;opacity:.7"><path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-42.3-168.2-107.8c-72.7-75.4-133.1-196.5-133.1-311.5 0-200.6 130.9-307 258.7-307 66.2 0 121.2 43.4 162.7 43.4 39.5 0 101.1-46 176.3-46 28.5 0 130.9 2.6 198.3 99.2zm-234-181.5c31.1-36.9 53.1-88.1 53.1-139.3 0-7.1-.6-14.3-1.9-20.1-50.6 1.9-110.8 33.7-147.1 75.8-28.5 32.4-55.1 83.6-55.1 135.5 0 7.8 1.3 15.6 1.9 18.1 3.2.6 8.4 1.3 13.6 1.3 45.4 0 102.5-30.4 135.5-71.3z"/></svg>
+              Apple
+            </span>
+            <span class="provider-badge" id="provider-apple">—</span>
+          </div>
+          <div class="account-row">
+            <span class="account-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;margin-right:6px;opacity:.7"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Google
+            </span>
+            <span class="provider-badge" id="provider-google">—</span>
+          </div>
+          <div class="account-row">
+            <span class="account-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;margin-right:6px;opacity:.7"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+              GitHub
+            </span>
+            <span class="provider-badge" id="provider-github">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- API KEYS PAGE -->
     <div class="page" id="page-apikeys" style="display:none">
       <div class="page-header">
@@ -788,6 +1033,556 @@ body{
           <div class="empty-state-text">No API keys created</div>
         </div>
       </div>
+    </div>
+
+    <!-- HOW IT WORKS PAGE -->
+    <div class="page tech-page" id="page-tech" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">How It Works</div>
+          <div class="page-desc">A complete technical reference for every layer of Shireguard</div>
+        </div>
+      </div>
+
+      <p class="tech-intro">
+        Shireguard is a private mesh VPN built on <strong>WireGuard</strong>. When you run <code style="font-family:var(--font-mono);font-size:.8em">shireguard up</code>, your device
+        creates an encrypted tunnel directly to every other device in your network — or, when a direct path is blocked by NAT,
+        via a relay server. The control plane (this dashboard) manages identities, device registration, and peer discovery.
+        Nothing in the data path touches Cloudflare or the relay unless it has to.
+      </p>
+
+      <!-- ── WireGuard ── -->
+      <div class="tech-section">
+        <div class="tech-section-header">
+          <span class="tech-section-icon">🔐</span>
+          <span class="tech-section-title">WireGuard — The Tunnel Protocol</span>
+          <span class="tech-section-badge green">Layer 3 / UDP</span>
+        </div>
+        <div class="tech-section-body">
+          <p class="tech-p">
+            WireGuard is a modern VPN protocol designed to be simpler, faster, and more auditable than IPsec or OpenVPN.
+            It operates at <strong>Layer 3</strong> (network layer), wrapping IP packets inside encrypted
+            <strong>UDP datagrams</strong>. There is no TCP, no handshake overhead at the transport layer — every WireGuard
+            packet is a self-contained, authenticated UDP frame.
+          </p>
+
+          <div class="tech-flow">
+            <div class="tech-flow-box">Plaintext IP packet</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box accent">WireGuard (encrypt + auth)</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">UDP datagram</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Internet</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">UDP datagram</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box accent">WireGuard (verify + decrypt)</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Plaintext IP packet</div>
+          </div>
+
+          <div class="tech-grid">
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Handshake (key exchange)</div>
+              <div class="tech-grid-value">
+                <strong>Noise Protocol</strong> IKpsk2 pattern using <span class="tech-tag">Curve25519</span> ECDH.
+                Each device holds a 32-byte private key and publishes a corresponding public key.
+                A handshake derives session keys; it completes in a single round-trip.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Data encryption</div>
+              <div class="tech-grid-value">
+                <span class="tech-tag">ChaCha20-Poly1305</span> AEAD. Fast on any CPU — no AES-NI required.
+                Every packet is encrypted with a unique nonce, preventing replay attacks.
+                The Poly1305 tag authenticates the entire datagram.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Hashing &amp; identity</div>
+              <div class="tech-grid-value">
+                <span class="tech-tag">BLAKE2s</span> for hashing and key derivation.
+                <span class="tech-tag">SipHash-2-4</span> for hashtable protection inside the implementation.
+                Public keys are the identity — there are no usernames or passwords inside WireGuard itself.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Session management</div>
+              <div class="tech-grid-value">
+                Sessions are fully stateless from the network's point of view. A peer is allowed through
+                if — and only if — it possesses the correct private key. Silence is authentication:
+                peers with wrong keys receive no response whatsoever.
+              </div>
+            </div>
+          </div>
+
+          <p class="tech-p">
+            <strong>Why UDP?</strong> TCP connections carry retransmission and ordering state. If you tunnel TCP-over-TCP
+            and either layer drops a packet, you get a "TCP meltdown" where both layers fight over retransmission.
+            UDP avoids this entirely. Applications running inside the tunnel use their own TCP/UDP as normal —
+            WireGuard's UDP is just the carrier.
+          </p>
+
+          <div class="tech-note">
+            <strong>Userspace WireGuard:</strong> Shireguard uses <code style="font-family:var(--font-mono);font-size:.85em">wireguard-go</code>,
+            a pure Go implementation. On macOS it creates a <span class="tech-tag">utun</span> interface assigned by the kernel (e.g. <span class="tech-tag">utun8</span>).
+            On Linux it creates a <span class="tech-tag">tun</span> device and requires <span class="tech-tag">cap_net_admin</span>
+            (set via <code style="font-family:var(--font-mono);font-size:.85em">setcap</code> — no root needed at runtime).
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Authentication ── -->
+      <div class="tech-section">
+        <div class="tech-section-header">
+          <span class="tech-section-icon">🪪</span>
+          <span class="tech-section-title">Authentication — Who Are You?</span>
+          <span class="tech-section-badge blue">OAuth 2.0 / JWT</span>
+        </div>
+        <div class="tech-section-body">
+          <p class="tech-p">
+            Shireguard uses <strong>federated identity</strong> — no passwords are stored. You prove who you are to
+            Apple, Google, or GitHub, and they vouch for you to the control plane.
+            The control plane then issues its own short-lived <strong>JWT access token</strong> that clients
+            present on every API call.
+          </p>
+
+          <p class="tech-p" style="font-weight:600;color:var(--text-primary);font-size:.82rem">Browser login flow (web dashboard)</p>
+          <div class="tech-flow">
+            <div class="tech-flow-box blue">Browser → /v1/auth/apple</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Redirect to provider</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">User consents</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Provider → /callback</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box accent">JWT written to localStorage</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box accent">Dashboard loads</div>
+          </div>
+
+          <p class="tech-p" style="font-weight:600;color:var(--text-primary);font-size:.82rem">CLI login flow (polling)</p>
+          <div class="tech-flow">
+            <div class="tech-flow-box blue">shireguard login</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Generate session ID</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Open browser</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">OAuth completes</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box amber">Tokens stored in KV</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">CLI polls /poll every 2s</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box accent">Tokens returned to CLI</div>
+          </div>
+
+          <div class="tech-note amber">
+            <strong>Why polling?</strong> Apple Sign-In uses <code style="font-family:var(--font-mono);font-size:.85em">response_mode=form_post</code>,
+            meaning the callback arrives as an HTTP POST. Browsers block HTTPS→HTTP redirects (localhost), so the usual
+            "open a local callback server" trick doesn't work. Polling a shared KV key avoids that restriction entirely
+            — the browser never needs to reach back to the CLI process.
+          </div>
+
+          <div class="tech-grid">
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Access token</div>
+              <div class="tech-grid-value">
+                <span class="tech-tag">HS256</span> JWT, signed with <code style="font-family:var(--font-mono);font-size:.85em">JWT_SECRET</code>.
+                Contains <span class="tech-tag">sub</span> (user ID), <span class="tech-tag">email</span>,
+                <span class="tech-tag">iat</span>, <span class="tech-tag">exp</span>.
+                Expires in <strong>15 minutes</strong>. Algorithm is validated on verify — no alg:none attacks.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Refresh token</div>
+              <div class="tech-grid-value">
+                32 bytes of CSPRNG output, hex-encoded. Stored in Cloudflare KV with a
+                <strong>7-day TTL</strong>. On use, exchanges for a new access token.
+                Rate-limited to 10 requests/minute per IP to prevent brute-force.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Apple id_token</div>
+              <div class="tech-grid-value">
+                RS256 JWT. Verified against Apple's JWKS endpoint. Claims checked:
+                <span class="tech-tag">iss</span> = <code style="font-family:var(--font-mono);font-size:.85em">appleid.apple.com</code>,
+                <span class="tech-tag">aud</span> = service ID, <span class="tech-tag">exp</span> &gt; now.
+                Apple sends user info (email) only on first login via <span class="tech-tag">form_post</span>.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Google / GitHub tokens</div>
+              <div class="tech-grid-value">
+                Google: RS256 id_token, verified against JWKS. Issuer is either
+                <code style="font-family:var(--font-mono);font-size:.85em">accounts.google.com</code> or
+                <code style="font-family:var(--font-mono);font-size:.85em">https://accounts.google.com</code>.
+                GitHub: no id_token — exchanges code for access token, then calls
+                <code style="font-family:var(--font-mono);font-size:.85em">api.github.com/user</code> directly.
+              </div>
+            </div>
+          </div>
+
+          <p class="tech-p">
+            <strong>Rate limiting</strong> is applied to all auth endpoints using a <strong>fixed-window counter</strong>
+            stored in Cloudflare KV. Keys are epoch-scoped —
+            <span class="tech-tag">rl:&lt;action&gt;:&lt;ip&gt;:&lt;epoch&gt;</span> — so counters naturally
+            expire without a separate cleanup pass. Every key is written with a TTL of 2× the window size.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Control Plane ── -->
+      <div class="tech-section">
+        <div class="tech-section-header">
+          <span class="tech-section-icon">☁️</span>
+          <span class="tech-section-title">Control Plane — Cloudflare Workers</span>
+          <span class="tech-section-badge blue">Edge / Serverless</span>
+        </div>
+        <div class="tech-section-body">
+          <p class="tech-p">
+            The control plane runs on <strong>Cloudflare Workers</strong> — a V8 isolate runtime that executes
+            at Cloudflare's edge (200+ locations). There are no traditional servers. Requests are handled by
+            the nearest PoP, cold-start time is measured in milliseconds, and there is no infrastructure to manage.
+          </p>
+
+          <div class="tech-grid">
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Cloudflare D1 (SQLite)</div>
+              <div class="tech-grid-value">
+                Persistent relational data: <span class="tech-tag">users</span>, <span class="tech-tag">devices</span>,
+                <span class="tech-tag">networks</span>, <span class="tech-tag">api_keys</span>,
+                <span class="tech-tag">peer_metrics</span>. D1 is a globally-distributed SQLite-compatible database
+                available directly inside the Worker runtime via a typed API.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Cloudflare KV</div>
+              <div class="tech-grid-value">
+                Ephemeral key-value data: refresh tokens (7-day TTL), CLI session tokens (5-min TTL),
+                OAuth state parameters (10-min TTL), rate-limit counters (2× window TTL).
+                KV is eventually consistent with typical read-after-write latency under 100 ms within a region.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Durable Objects (signaling)</div>
+              <div class="tech-grid-value">
+                <strong>SignalingRoom</strong> is a Durable Object that holds a WebSocket connection per device.
+                When a device connects, the DO broadcasts its endpoint and public key to all other peers in the
+                same network — enabling real-time peer discovery without polling D1.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Hono framework</div>
+              <div class="tech-grid-value">
+                All routing is handled by <strong>Hono</strong>, a TypeScript-native, zero-dependency framework
+                built for edge runtimes. Routes live under <span class="tech-tag">/v1/auth</span>,
+                <span class="tech-tag">/v1/devices</span>, <span class="tech-tag">/v1/networks</span>,
+                <span class="tech-tag">/v1/metrics</span>, and <span class="tech-tag">/v1/relays</span>.
+              </div>
+            </div>
+          </div>
+
+          <table class="tech-table">
+            <thead><tr><th>Table</th><th>What it stores</th><th>Key fields</th></tr></thead>
+            <tbody>
+              <tr><td>users</td><td>One row per account. Identity linked from OAuth providers.</td><td>id, email, apple_sub, google_sub, github_id</td></tr>
+              <tr><td>devices</td><td>Every registered machine — its WireGuard public key and assigned IP.</td><td>id, user_id, network_id, public_key, assigned_ip, endpoint, last_seen_at</td></tr>
+              <tr><td>networks</td><td>Private networks (default: one per user, CIDR 100.65.0.0/16).</td><td>id, user_id, name, cidr</td></tr>
+              <tr><td>api_keys</td><td>Programmatic access credentials. Key is stored as SHA-256 hash only.</td><td>key_hash, prefix, expires_at, last_used_at</td></tr>
+              <tr><td>peer_metrics</td><td>Latency, jitter, packet loss, connection type per device-pair.</td><td>device_id, peer_device_id, latency_ms, connection_type</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── Client Daemon ── -->
+      <div class="tech-section">
+        <div class="tech-section-header">
+          <span class="tech-section-icon">🖥️</span>
+          <span class="tech-section-title">Client Daemon — Go + wireguard-go</span>
+          <span class="tech-section-badge amber">macOS · Linux</span>
+        </div>
+        <div class="tech-section-body">
+          <p class="tech-p">
+            The <code style="font-family:var(--font-mono);font-size:.85em">shireguard</code> binary is a Go application
+            that manages the local WireGuard interface and maintains a live connection to the control plane.
+            It runs in the foreground (<code style="font-family:var(--font-mono);font-size:.85em">shireguard up</code>)
+            and exits cleanly on interrupt, tearing down the TUN interface.
+          </p>
+
+          <div class="tech-flow">
+            <div class="tech-flow-box blue">shireguard up</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Load saved credentials</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box accent">Create TUN device (utun / tun)</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Fetch device + peers from API</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box accent">Configure WireGuard interface</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">WebSocket signaling</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box blue">Tunnel running</div>
+          </div>
+
+          <div class="tech-grid">
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Key storage</div>
+              <div class="tech-grid-value">
+                A Curve25519 key pair is generated on first <code style="font-family:var(--font-mono);font-size:.85em">register-device</code>
+                and saved to <span class="tech-tag">~/.config/shireguard/privatekey</span>.
+                The public key is uploaded to the control plane. The private key never leaves the device.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">IP assignment</div>
+              <div class="tech-grid-value">
+                The control plane assigns an IP from the network CIDR (<span class="tech-tag">100.65.0.0/16</span>).
+                Addresses are sequential starting at <span class="tech-tag">.1</span>.
+                The client adds a <span class="tech-tag">/32</span> route for each peer so only
+                VPN-destined traffic enters the tunnel — not all internet traffic.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Endpoint discovery</div>
+              <div class="tech-grid-value">
+                On startup the client fetches its own public IP via the control plane heartbeat endpoint.
+                This external endpoint is advertised to peers via the signaling channel.
+                WireGuard then attempts to reach the peer directly at that IP + port.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Heartbeat</div>
+              <div class="tech-grid-value">
+                Every 60 seconds the daemon posts to <span class="tech-tag">POST /v1/devices/:id/heartbeat</span>
+                with its current external endpoint. This keeps <span class="tech-tag">last_seen_at</span> fresh
+                and updates the endpoint if the device's public IP has changed (roaming).
+              </div>
+            </div>
+          </div>
+
+          <p class="tech-p">
+            <strong>TUN vs TAP:</strong> Shireguard uses a <strong>TUN</strong> (tunnel) device, not TAP.
+            TUN operates at Layer 3 — it carries IP packets only. TAP operates at Layer 2 and carries Ethernet
+            frames. WireGuard is a Layer 3 protocol so a TUN device is the correct fit; it also has
+            significantly less overhead because there are no MAC address lookups or ARP broadcasts.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Peer Discovery ── -->
+      <div class="tech-section">
+        <div class="tech-section-header">
+          <span class="tech-section-icon">📡</span>
+          <span class="tech-section-title">Peer Discovery — WebSocket Signaling</span>
+          <span class="tech-section-badge blue">Durable Objects / WebSocket</span>
+        </div>
+        <div class="tech-section-body">
+          <p class="tech-p">
+            WireGuard itself has no built-in discovery mechanism — you must tell it where each peer is.
+            Shireguard solves this with a real-time <strong>WebSocket signaling channel</strong> backed by a
+            Cloudflare Durable Object (a single-instance actor with strong consistency).
+          </p>
+
+          <div class="tech-flow">
+            <div class="tech-flow-box blue">Device A connects</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">WS → SignalingRoom DO</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Broadcasts A's pubkey + endpoint to all peers</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box accent">Device B updates its WG config</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box accent">WireGuard handshake begins</div>
+          </div>
+
+          <p class="tech-p">
+            One Durable Object instance exists per network ID. All devices in a network share the same
+            DO instance, so messages delivered there are immediately visible to all connected peers.
+            When a new device joins, it receives the current state of all existing peers in its first message.
+          </p>
+
+          <div class="tech-note">
+            <strong>Fallback:</strong> If the WebSocket connection drops, the client reconnects with exponential backoff.
+            If signaling is unavailable entirely, the tunnel continues to function using the last-known peer endpoints
+            cached in the local WireGuard configuration — peers just won't discover each other's new endpoints until
+            signaling recovers.
+          </div>
+        </div>
+      </div>
+
+      <!-- ── NAT Traversal & Relays ── -->
+      <div class="tech-section">
+        <div class="tech-section-header">
+          <span class="tech-section-icon">🔀</span>
+          <span class="tech-section-title">NAT Traversal &amp; Relay Fallback</span>
+          <span class="tech-section-badge amber">UDP Hole Punching / AWS Relay</span>
+        </div>
+        <div class="tech-section-body">
+          <p class="tech-p">
+            Most devices sit behind <strong>NAT</strong> (Network Address Translation) — their router rewrites
+            the source IP and port on outbound packets and maps inbound packets back. This works fine for
+            outbound connections, but two NATted devices cannot directly reach each other without help.
+          </p>
+
+          <p class="tech-p" style="font-weight:600;color:var(--text-primary);font-size:.82rem">Direct path — UDP hole punching</p>
+          <div class="tech-flow">
+            <div class="tech-flow-box">Device A (NAT A)</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Sends UDP to B's external endpoint</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">NAT A opens a mapping for B's IP:port</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">B sends UDP to A's external endpoint simultaneously</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box accent">Both NATs now have mappings → packets flow directly</div>
+          </div>
+
+          <p class="tech-p">
+            WireGuard's built-in <strong>keepalive</strong> packets (sent every ~25 s by default) maintain these
+            NAT mappings. As long as at least one side sends traffic regularly, the mapping stays open and the
+            direct tunnel survives indefinitely.
+          </p>
+
+          <p class="tech-p" style="font-weight:600;color:var(--text-primary);font-size:.82rem">Relay path — when direct fails</p>
+          <p class="tech-p">
+            Some NAT implementations (symmetric NAT, carrier-grade NAT) assign a different external port for each
+            destination, making hole punching unreliable. In those cases Shireguard falls back to a
+            <strong>relay server</strong> hosted on AWS Lightsail.
+          </p>
+
+          <div class="tech-flow">
+            <div class="tech-flow-box">Device A</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box amber">UDP keepalive → Relay</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Relay registers A's external IP:port in a slot</div>
+            <div class="tech-flow-label">same for B →</div>
+            <div class="tech-flow-box amber">Relay forwards A's packets to B's slot</div>
+            <div class="tech-flow-arrow">→</div>
+            <div class="tech-flow-box">Device B</div>
+          </div>
+
+          <div class="tech-grid">
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Relay architecture</div>
+              <div class="tech-grid-value">
+                A single Go UDP server listens on port <span class="tech-tag">51821</span>.
+                Each device registers via HTTP on port <span class="tech-tag">8080</span> and receives a slot assignment.
+                The relay forwards raw UDP datagrams between the two slots — it sees only ciphertext and never
+                decrypts anything.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Local proxy (home device)</div>
+              <div class="tech-grid-value">
+                The device with the <strong>lower WireGuard IP</strong> (the "home" side) runs a local UDP proxy
+                on <span class="tech-tag">127.0.0.1:&lt;random&gt;</span>.
+                WireGuard sends to this proxy; the proxy forwards via a single persistent socket to the relay.
+                This ensures keepalives and WireGuard data share one NAT mapping.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Why one socket matters</div>
+              <div class="tech-grid-value">
+                Without the proxy, keepalives and WireGuard data would use different sockets — creating two
+                separate NAT mappings. The relay would see keepalives from one port and WireGuard packets
+                from another, and route them incorrectly. The single-socket proxy eliminates this split.
+              </div>
+            </div>
+            <div class="tech-grid-item">
+              <div class="tech-grid-label">Protocol: always WireGuard</div>
+              <div class="tech-grid-value">
+                Whether the path is direct or relayed, the payload is identical encrypted WireGuard traffic.
+                The relay changes the <em>transport path</em> only — encryption, authentication, and peer
+                identity remain fully intact. The relay cannot read or modify any payload.
+              </div>
+            </div>
+          </div>
+
+          <p class="tech-p">
+            The Metrics page shows whether each peer pair is using a <span class="tech-tag">direct</span> or
+            <span class="tech-tag" style="background:var(--amber-dim);color:var(--amber)">relay</span> connection.
+            Direct is always preferred; relay is a transparent fallback that activates automatically.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── Data flow summary ── -->
+      <div class="tech-section">
+        <div class="tech-section-header">
+          <span class="tech-section-icon">🗺️</span>
+          <span class="tech-section-title">Putting It All Together</span>
+          <span class="tech-section-badge green">Full Stack</span>
+        </div>
+        <div class="tech-section-body">
+          <table class="tech-table">
+            <thead><tr><th>Layer</th><th>Technology</th><th>Purpose</th><th>Protocol</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Identity</td>
+                <td>Apple / Google / GitHub OAuth 2.0</td>
+                <td>Prove who you are without passwords</td>
+                <td>HTTPS / RS256 JWT</td>
+              </tr>
+              <tr>
+                <td>Session</td>
+                <td>HS256 JWT + Cloudflare KV refresh token</td>
+                <td>Short-lived access, long-lived refresh</td>
+                <td>HTTPS Bearer</td>
+              </tr>
+              <tr>
+                <td>Control plane</td>
+                <td>Cloudflare Workers + D1 + Hono</td>
+                <td>Device registry, peer list, metrics</td>
+                <td>HTTPS / REST</td>
+              </tr>
+              <tr>
+                <td>Signaling</td>
+                <td>Cloudflare Durable Object WebSocket</td>
+                <td>Real-time peer endpoint exchange</td>
+                <td>WSS</td>
+              </tr>
+              <tr>
+                <td>Tunnel (direct)</td>
+                <td>WireGuard / wireguard-go</td>
+                <td>Encrypted peer-to-peer data plane</td>
+                <td>UDP (port 51820)</td>
+              </tr>
+              <tr>
+                <td>Tunnel (relay)</td>
+                <td>Go UDP relay on AWS Lightsail</td>
+                <td>NAT traversal fallback</td>
+                <td>UDP (port 51821)</td>
+              </tr>
+              <tr>
+                <td>TUN device</td>
+                <td>utun (macOS) / tun (Linux)</td>
+                <td>Inject/extract packets from the OS network stack</td>
+                <td>IP (Layer 3)</td>
+              </tr>
+              <tr>
+                <td>Distribution</td>
+                <td>Homebrew tap / install.sh</td>
+                <td>Install the client binary</td>
+                <td>HTTPS</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="tech-note">
+            <strong>Data privacy:</strong> The control plane sees metadata only (device names, public keys, endpoints, metrics).
+            It never sees plaintext traffic between your devices. The relay sees only encrypted WireGuard ciphertext.
+            Your actual data travels peer-to-peer, encrypted end-to-end with keys that only your devices hold.
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ABOUT PAGE -->
@@ -1203,6 +1998,8 @@ function navigateTo(page) {
   if (page === 'networks') loadNetworks();
   if (page === 'metrics') loadMetricsSummary();
   if (page === 'apikeys') loadApiKeys();
+  if (page === 'account') loadAccount();
+  // 'tech' and 'about' are static — no fetch needed
 }
 
 // ── Load All ──
@@ -1426,6 +2223,29 @@ async function loadMetricsSummary() {
   }
 }
 
+// ── Account ──
+async function loadAccount() {
+  document.getElementById('acct-email').textContent = '…';
+  document.getElementById('acct-since').textContent = '…';
+  ['apple','google','github'].forEach(p => {
+    const el = document.getElementById(`provider-${p}`);
+    el.textContent = '…';
+    el.className = 'provider-badge';
+  });
+  try {
+    const data = await api('GET', '/v1/auth/me');
+    document.getElementById('acct-email').textContent = data.email;
+    document.getElementById('acct-since').textContent = new Date(data.created_at + (data.created_at.includes('T') ? 'Z' : '')).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    for (const [provider, connected] of Object.entries(data.providers)) {
+      const el = document.getElementById(`provider-${provider}`);
+      el.textContent = connected ? 'Connected' : 'Not connected';
+      el.className = `provider-badge ${connected ? 'connected' : 'not-connected'}`;
+    }
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
 // ── API Keys ──
 async function loadApiKeys() {
   const tbody = document.getElementById('apikeys-tbody');
@@ -1508,6 +2328,13 @@ function esc(s) {
   const d = document.createElement('div');
   d.textContent = String(s);
   return d.innerHTML;
+}
+
+function switchOS(os, btn) {
+  document.querySelectorAll('.setup-os-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('setup-macos').style.display = os === 'macos' ? '' : 'none';
+  document.getElementById('setup-linux').style.display = os === 'linux' ? '' : 'none';
 }
 
 function copyCode(btn) {

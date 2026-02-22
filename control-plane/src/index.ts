@@ -32,12 +32,21 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 
 // Dashboard (serve HTML)
 import dashboardHtml from './dashboard.html';
+import installScript from '../../install.sh';
 
 app.get('/', (c) => {
   return c.html(dashboardHtml);
 });
 app.get('/dashboard', (c) => {
   return c.html(dashboardHtml);
+});
+
+// Linux installer script — curl -sSL https://shireguard.com/install.sh | bash
+app.get('/install.sh', (c) => {
+  return c.text(installScript, 200, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Content-Disposition': 'inline; filename="install.sh"',
+  });
 });
 
 // API routes

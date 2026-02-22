@@ -11,6 +11,10 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // RelaySlot represents one registered device's relay allocation.
@@ -23,6 +27,15 @@ type RelaySlot struct {
 	homeAddr *net.UDPAddr
 	peerAddr *net.UDPAddr
 	lastSeen time.Time
+	metrics  *relayMetrics
+}
+
+type relayMetrics struct {
+	slotsRegistered  prometheus.Counter
+	slotsEvicted     prometheus.Counter
+	keepalives       prometheus.Counter
+	packetsForwarded prometheus.Counter
+	bytesForwarded   prometheus.Counter
 }
 
 // RelayServer manages relay slots and HTTP registration.
@@ -33,17 +46,88 @@ type RelayServer struct {
 	nextPort    int
 	authToken   string // shared secret from --token flag
 	host        string // public hostname/IP of this server
+	metrics     *relayMetrics
 }
 
 // NewServer creates a RelayServer with the given public host, base UDP port, and auth token.
-func NewServer(host string, udpBase int, authToken string) *RelayServer {
+func NewServer(host string, udpBase int, authToken string, version, commit string) *RelayServer {
+	m := &relayMetrics{
+		slotsRegistered: promauto.NewCounter(prometheus.CounterOpts{
+			Name: "shireguard_relay_slots_registered_total",
+			Help: "Total relay slots registered since startup.",
+		}),
+		slotsEvicted: promauto.NewCounter(prometheus.CounterOpts{
+			Name: "shireguard_relay_slots_evicted_total",
+			Help: "Total relay slots evicted due to inactivity.",
+		}),
+		keepalives: promauto.NewCounter(prometheus.CounterOpts{
+			Name: "shireguard_relay_keepalives_total",
+			Help: "Total keepalive packets received.",
+		}),
+		packetsForwarded: promauto.NewCounter(prometheus.CounterOpts{
+			Name: "shireguard_relay_packets_forwarded_total",
+			Help: "Total UDP packets forwarded between peers.",
+		}),
+		bytesForwarded: promauto.NewCounter(prometheus.CounterOpts{
+			Name: "shireguard_relay_bytes_forwarded_total",
+			Help: "Total bytes forwarded between peers.",
+		}),
+	}
+
+	// Build info — version/commit as labels, value always 1.
+	promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "shireguard_relay_build_info",
+		Help: "Relay build information.",
+	}, []string{"version", "commit"}).With(prometheus.Labels{
+		"version": version,
+		"commit":  commit,
+	}).Set(1)
+
 	s := &RelayServer{
 		slots:       make(map[int]*RelaySlot),
 		tokenToPort: make(map[string]int),
 		nextPort:    udpBase,
 		authToken:   authToken,
 		host:        host,
+		metrics:     m,
 	}
+
+	// GaugeFuncs read live state at every Prometheus scrape.
+	prometheus.MustRegister(prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "shireguard_relay_active_slots",
+			Help: "Current number of registered relay slots.",
+		},
+		func() float64 {
+			s.mu.RLock()
+			defer s.mu.RUnlock()
+			return float64(len(s.slots))
+		},
+	))
+	prometheus.MustRegister(prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "shireguard_relay_active_pairs",
+			Help: "Relay slots where both the home and peer endpoints are established.",
+		},
+		func() float64 {
+			s.mu.RLock()
+			snapshot := make([]*RelaySlot, 0, len(s.slots))
+			for _, sl := range s.slots {
+				snapshot = append(snapshot, sl)
+			}
+			s.mu.RUnlock()
+			var n int
+			for _, sl := range snapshot {
+				sl.mu.Lock()
+				if sl.homeAddr != nil && sl.peerAddr != nil {
+					n++
+				}
+				sl.mu.Unlock()
+			}
+			return float64(n)
+		},
+	))
+
 	go s.cleanupLoop()
 	return s
 }
@@ -53,6 +137,7 @@ func (s *RelayServer) ListenAndServe(addr string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("POST /register", s.handleRegister)
+	mux.Handle("GET /metrics", promhttp.Handler())
 	return http.ListenAndServe(addr, mux)
 }
 
@@ -91,10 +176,12 @@ func (s *RelayServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	port := s.nextPort
 	s.nextPort++
-	slot := &RelaySlot{token: token}
+	slot := &RelaySlot{token: token, metrics: s.metrics}
 	s.slots[port] = slot
 	s.tokenToPort[tokenHex] = port
 	s.mu.Unlock()
+
+	s.metrics.slotsRegistered.Inc()
 
 	// Open UDP socket for this slot
 	conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", port))
@@ -103,6 +190,7 @@ func (s *RelayServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 		delete(s.slots, port)
 		delete(s.tokenToPort, tokenHex)
 		s.mu.Unlock()
+		s.metrics.slotsRegistered.Add(-1) // undo
 		http.Error(w, `{"error":"could not bind port"}`, http.StatusInternalServerError)
 		return
 	}
@@ -151,6 +239,7 @@ func (slot *RelaySlot) serve(conn net.PacketConn) {
 			// Since the client sends keepalives and WireGuard data through
 			// the same local proxy socket, this address matches where data
 			// packets from the home device will arrive from.
+			slot.metrics.keepalives.Inc()
 			slot.mu.Lock()
 			prev := slot.homeAddr
 			slot.homeAddr = &net.UDPAddr{IP: udpAddr.IP, Port: udpAddr.Port}
@@ -177,6 +266,8 @@ func (slot *RelaySlot) serve(conn net.PacketConn) {
 			log.Printf("relay port %s: pkt from %s fromHome=%v dst=%v len=%d", conn.LocalAddr(), udpAddr, fromHome, dst, n)
 			if dst != nil {
 				conn.WriteTo(buf[:n], dst)
+				slot.metrics.packetsForwarded.Inc()
+				slot.metrics.bytesForwarded.Add(float64(n))
 			}
 		}
 	}
@@ -199,6 +290,7 @@ func (s *RelayServer) cleanupLoop() {
 				// Remove from token map
 				tokenHex := hex.EncodeToString(slot.token[:])
 				delete(s.tokenToPort, tokenHex)
+				s.metrics.slotsEvicted.Inc()
 			}
 		}
 		s.mu.Unlock()

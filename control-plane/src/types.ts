@@ -3,7 +3,6 @@ export interface Env {
   KV: KVNamespace;
   SIGNALING: DurableObjectNamespace;
   JWT_SECRET: string;
-  INVITE_CODE: string;
   APPLE_TEAM_ID: string;
   APPLE_KEY_ID: string;
   APPLE_SERVICE_ID: string;

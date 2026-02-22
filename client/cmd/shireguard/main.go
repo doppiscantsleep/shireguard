@@ -304,7 +304,14 @@ func startDaemon() error {
 	logPath := "/var/log/shireguard.log"
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("opening log file %s: %w", logPath, err)
+		// Fall back to a user-writable path (e.g. when launched from the menu bar app).
+		if home, herr := os.UserHomeDir(); herr == nil {
+			logPath = home + "/.shireguard/shireguard.log"
+			logFile, err = os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		}
+		if err != nil {
+			return fmt.Errorf("opening log file: %w", err)
+		}
 	}
 	defer logFile.Close()
 

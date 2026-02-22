@@ -83,8 +83,12 @@ func shireguardBinary() string {
 		return candidate
 	}
 
-	// App bundle: .../Contents/MacOS/shireguard-menubar → try ../../Resources
-	// But shireguard is typically installed in /usr/local/bin or brew prefix.
+	// Check well-known Homebrew paths (PATH is minimal inside an .app bundle).
+	for _, p := range []string{"/opt/homebrew/bin/shireguard", "/usr/local/bin/shireguard"} {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
 	return "shireguard"
 }
 

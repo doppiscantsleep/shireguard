@@ -23,6 +23,7 @@ import (
 // Packets from homeAddr are forwarded to peerAddr and vice versa.
 type RelaySlot struct {
 	mu       sync.Mutex
+	conn     net.PacketConn // owned UDP socket; closed by cleanupLoop on eviction
 	token    [16]byte
 	homeAddr *net.UDPAddr
 	peerAddr *net.UDPAddr
@@ -44,6 +45,7 @@ type RelayServer struct {
 	slots       map[int]*RelaySlot // relay_port → slot
 	tokenToPort map[string]int     // hex(token) → relay_port
 	nextPort    int
+	freePorts   []int  // evicted ports available for reuse
 	authToken   string // shared secret from --token flag
 	host        string // public hostname/IP of this server
 	metrics     *relayMetrics
@@ -172,10 +174,16 @@ func (s *RelayServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	tokenHex := hex.EncodeToString(token[:])
 
-	// Allocate next port
+	// Allocate port — prefer recycled ports to prevent unbounded growth.
 	s.mu.Lock()
-	port := s.nextPort
-	s.nextPort++
+	var port int
+	if len(s.freePorts) > 0 {
+		port = s.freePorts[len(s.freePorts)-1]
+		s.freePorts = s.freePorts[:len(s.freePorts)-1]
+	} else {
+		port = s.nextPort
+		s.nextPort++
+	}
 	slot := &RelaySlot{token: token, metrics: s.metrics}
 	s.slots[port] = slot
 	s.tokenToPort[tokenHex] = port
@@ -194,6 +202,7 @@ func (s *RelayServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"could not bind port"}`, http.StatusInternalServerError)
 		return
 	}
+	slot.conn = conn // store so cleanupLoop can close it on eviction
 
 	log.Printf("registered device %s on relay port %d", body.DeviceID, port)
 	go slot.serve(conn)
@@ -284,11 +293,17 @@ func (s *RelayServer) cleanupLoop() {
 			stale := slot.lastSeen.Before(cutoff)
 			slot.mu.Unlock()
 			if stale {
-				log.Printf("evicting stale relay slot on port %d", port)
+				log.Printf("evicting stale relay slot on port %d (recycling)", port)
+				// Close the socket — unblocks serve()'s ReadFrom so the
+				// goroutine exits cleanly. The deferred conn.Close() in
+				// serve() is a no-op on an already-closed conn.
+				if slot.conn != nil {
+					slot.conn.Close()
+				}
 				delete(s.slots, port)
-				// Remove from token map
 				tokenHex := hex.EncodeToString(slot.token[:])
 				delete(s.tokenToPort, tokenHex)
+				s.freePorts = append(s.freePorts, port) // recycle for reuse
 				s.metrics.slotsEvicted.Inc()
 			}
 		}

@@ -40,6 +40,10 @@ type Daemon struct {
 	// This ensures the keepalive and data packets share one NAT mapping.
 	relayProxyAddr string // "127.0.0.1:<port>" — set when proxy is running
 
+	// STUN-discovered public endpoint, refreshed every 5 minutes.
+	stunMu       sync.RWMutex
+	stunEndpoint string
+
 	// Peer state (keyed by base64 public key)
 	mu             sync.RWMutex
 	peersByKey     map[string]api.Peer // pubKey → peer (includes relay info)
@@ -74,12 +78,16 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	// 1. Discover public endpoint via STUN, binding to WireGuard's port (51820)
 	// so the discovered external port matches what WireGuard will actually use.
-	stunEndpoint := nat.DiscoverEndpoint(51820)
-	if stunEndpoint != "" {
-		log.Printf("STUN discovered endpoint: %s", stunEndpoint)
+	// Called before tunnel.Up() so port 51820 is still free to bind.
+	initialEndpoint := nat.DiscoverEndpoint(51820)
+	if initialEndpoint != "" {
+		log.Printf("STUN discovered endpoint: %s", initialEndpoint)
 	} else {
 		log.Println("STUN discovery failed, proceeding without public endpoint")
 	}
+	d.stunMu.Lock()
+	d.stunEndpoint = initialEndpoint
+	d.stunMu.Unlock()
 
 	// 2. Fetch initial peer list
 	peers, err := d.client.GetPeers(d.cfg.NetworkID)
@@ -99,7 +107,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	log.Printf("connected to %d peer(s)", len(tunnelCfg.Peers))
 
 	// 4. Send initial heartbeat with discovered endpoint
-	if err := d.client.Heartbeat(d.cfg.DeviceID, stunEndpoint); err != nil {
+	if err := d.client.Heartbeat(d.cfg.DeviceID, d.stunEndpoint); err != nil {
 		log.Printf("initial heartbeat failed: %v", err)
 	}
 
@@ -107,6 +115,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.setupRelay(ctx)
 
 	// 6. Run background loops
+	go d.stunRefreshLoop(ctx)
+
 	heartbeatTicker := time.NewTicker(heartbeatInterval)
 	peerSyncTicker := time.NewTicker(peerSyncInterval)
 	checkConnTicker := time.NewTicker(connectivityInterval)
@@ -121,7 +131,10 @@ func (d *Daemon) Run(ctx context.Context) error {
 			return nil
 
 		case <-heartbeatTicker.C:
-			if err := d.client.Heartbeat(d.cfg.DeviceID, stunEndpoint); err != nil {
+			d.stunMu.RLock()
+			endpoint := d.stunEndpoint
+			d.stunMu.RUnlock()
+			if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint); err != nil {
 				log.Printf("heartbeat failed: %v", err)
 			}
 
@@ -177,6 +190,45 @@ func (d *Daemon) setupRelay(ctx context.Context) {
 	}
 	d.relayProxyAddr = proxyAddr
 	log.Printf("relay proxy listening on %s", proxyAddr)
+}
+
+// stunRefreshLoop periodically re-discovers the public endpoint via STUN and
+// sends a heartbeat immediately if the endpoint has changed. After tunnel.Up()
+// port 51820 is owned by wireguard-go, so we use an ephemeral port for STUN
+// and replace the discovered port with WireGuard's fixed listen port (51820).
+func (d *Daemon) stunRefreshLoop(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// Use ephemeral port (0) since WireGuard owns 51820.
+			raw := nat.DiscoverEndpoint(0)
+			if raw == "" {
+				continue
+			}
+			// Replace the STUN-assigned port with WireGuard's listen port.
+			host, _, err := net.SplitHostPort(raw)
+			if err != nil {
+				continue
+			}
+			endpoint := net.JoinHostPort(host, "51820")
+
+			d.stunMu.Lock()
+			changed := endpoint != d.stunEndpoint
+			d.stunEndpoint = endpoint
+			d.stunMu.Unlock()
+
+			if changed {
+				log.Printf("[stun] endpoint changed to %s, sending heartbeat", endpoint)
+				if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint); err != nil {
+					log.Printf("[stun] heartbeat failed: %v", err)
+				}
+			}
+		}
+	}
 }
 
 // startRelayProxy creates a local UDP proxy that:
@@ -458,7 +510,7 @@ func netIPLess(a, b net.IP) bool {
 func (d *Daemon) buildTunnelConfig(peers []api.Peer) *wg.TunnelConfig {
 	cfg := &wg.TunnelConfig{
 		PrivateKey: d.cfg.PrivateKey,
-		Address:    d.cfg.AssignedIP + "/24",
+		Address:    d.cfg.AssignedIP + "/16",
 		ListenPort: 51820,
 	}
 

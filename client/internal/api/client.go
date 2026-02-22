@@ -119,11 +119,12 @@ type Peer struct {
 	RelayPort  int     `json:"relay_port,omitempty"`
 }
 
-// Relay represents a relay server returned by the control plane.
-type Relay struct {
-	Host      string `json:"host"`
-	Port      int    `json:"port"`
-	AuthToken string `json:"auth_token"`
+// RelayRegistration holds the result of registering this device with the relay
+// via the control plane.
+type RelayRegistration struct {
+	RelayHost  string `json:"relay_host"`
+	RelayPort  int    `json:"relay_port"`
+	RelayToken string `json:"relay_token"`
 }
 
 func (c *Client) ListNetworks() ([]Network, error) {
@@ -148,54 +149,16 @@ func (c *Client) GetPeers(networkID string) ([]Peer, error) {
 
 // Relays
 
-// GetRelays returns the list of active relay servers from the control plane.
-func (c *Client) GetRelays() ([]Relay, error) {
-	var resp struct {
-		Relays []Relay `json:"relays"`
-	}
-	if err := c.do("GET", "/v1/relays", nil, &resp); err != nil {
+// RegisterDeviceWithRelay registers this device with the relay server via the
+// control plane. The control plane proxies the request so the relay auth_token
+// is never exposed to clients.
+func (c *Client) RegisterDeviceWithRelay(deviceID string) (*RelayRegistration, error) {
+	body := map[string]string{"device_id": deviceID}
+	var resp RelayRegistration
+	if err := c.do("POST", "/v1/relays/register", body, &resp); err != nil {
 		return nil, err
 	}
-	return resp.Relays, nil
-}
-
-// RegisterWithRelay registers this device with a relay server and returns
-// the assigned relay_port and relay_token (hex-encoded 16 bytes).
-func (c *Client) RegisterWithRelay(relay Relay, deviceID string) (relayPort int, relayToken string, err error) {
-	body := map[string]string{"device_id": deviceID}
-
-	reqData, err := json.Marshal(body)
-	if err != nil {
-		return 0, "", err
-	}
-
-	req, err := http.NewRequest("POST", fmt.Sprintf("http://%s:%d/register", relay.Host, relay.Port), bytes.NewReader(reqData))
-	if err != nil {
-		return 0, "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+relay.AuthToken)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return 0, "", fmt.Errorf("relay register: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return 0, "", fmt.Errorf("relay register: status %d", resp.StatusCode)
-	}
-
-	var result struct {
-		RelayHost  string `json:"relay_host"`
-		RelayPort  int    `json:"relay_port"`
-		RelayToken string `json:"relay_token"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return 0, "", fmt.Errorf("relay register: decode: %w", err)
-	}
-
-	return result.RelayPort, result.RelayToken, nil
+	return &resp, nil
 }
 
 // StoreRelayEndpoint informs the control plane of this device's relay host and port

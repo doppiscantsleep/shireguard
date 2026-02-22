@@ -65,8 +65,17 @@ relay-lightsail-firewall:
 	  --port-info fromPort=8080,toPort=8080,protocol=TCP
 	aws lightsail open-instance-public-ports \
 	  --instance-name $(LIGHTSAIL_INSTANCE) \
+	  --port-info fromPort=9100,toPort=9100,protocol=TCP
+	aws lightsail open-instance-public-ports \
+	  --instance-name $(LIGHTSAIL_INSTANCE) \
 	  --port-info fromPort=51821,toPort=52820,protocol=UDP
-	@echo "Lightsail firewall: opened TCP 8080 and UDP 51821-52820"
+	@echo "Lightsail firewall: opened TCP 8080, TCP 9100 and UDP 51821-52820"
+
+# Install node_exporter on the relay for system-level Prometheus metrics.
+# Exposes CPU, memory, network I/O, disk, etc. on port 9100.
+relay-node-exporter:
+	scp deploy/node-exporter-setup.sh $(RELAY_HOST):/tmp/node-exporter-setup.sh
+	ssh $(RELAY_HOST) "bash /tmp/node-exporter-setup.sh"
 
 # Insert relay into D1 (run after relay-deploy and relay-lightsail-firewall)
 RELAY_NAME   ?= us-east-1

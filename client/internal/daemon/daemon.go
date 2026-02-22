@@ -147,49 +147,52 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 }
 
-// setupRelay fetches relay info from the control plane, registers this device
-// with the relay server, stores the result, and starts the local relay proxy.
+// setupRelay registers this device with the relay via the control plane,
+// stores the result, and starts the local relay proxy.
 func (d *Daemon) setupRelay(ctx context.Context) {
-	relays, err := d.client.GetRelays()
-	if err != nil || len(relays) == 0 {
-		log.Printf("no relays available: %v", err)
-		return
-	}
-
-	relay := relays[0]
-	relayPort, relayTokenHex, err := d.client.RegisterWithRelay(relay, d.cfg.DeviceID)
+	reg, err := d.client.RegisterDeviceWithRelay(d.cfg.DeviceID)
 	if err != nil {
 		log.Printf("relay registration failed: %v", err)
 		return
 	}
 
-	tokenBytes, err := hex.DecodeString(relayTokenHex)
+	tokenBytes, err := hex.DecodeString(reg.RelayToken)
 	if err != nil || len(tokenBytes) != 16 {
 		log.Printf("invalid relay token: %v", err)
 		return
 	}
 
-	d.relayHost = relay.Host
-	d.relayPort = relayPort
+	d.relayHost = reg.RelayHost
+	d.relayPort = reg.RelayPort
 	d.relayToken = tokenBytes
 
-	log.Printf("registered with relay %s on port %d", relay.Host, relayPort)
+	log.Printf("registered with relay %s on port %d", reg.RelayHost, reg.RelayPort)
 
 	// Store relay endpoint in control plane so peers can discover us
-	if err := d.client.StoreRelayEndpoint(d.cfg.DeviceID, relay.Host, relayPort); err != nil {
+	if err := d.client.StoreRelayEndpoint(d.cfg.DeviceID, reg.RelayHost, reg.RelayPort); err != nil {
 		log.Printf("storing relay endpoint failed: %v", err)
 	}
 
 	// Start a local UDP proxy that bridges WireGuard and the relay through
 	// a single outbound socket. This ensures keepalives and data share one
 	// NAT mapping, so the relay can forward return traffic correctly.
-	proxyAddr, err := d.startRelayProxy(ctx)
+	proxyAddr, died, err := d.startRelayProxy(ctx)
 	if err != nil {
 		log.Printf("relay proxy failed to start: %v", err)
 		return
 	}
 	d.relayProxyAddr = proxyAddr
 	log.Printf("relay proxy listening on %s", proxyAddr)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-died:
+			if ctx.Err() == nil {
+				log.Printf("relay proxy died unexpectedly — relay fallback unavailable until restart")
+			}
+		}
+	}()
 }
 
 // stunRefreshLoop periodically re-discovers the public endpoint via STUN and
@@ -243,24 +246,25 @@ func (d *Daemon) stunRefreshLoop(ctx context.Context) {
 // public address, and all forwarded packets return through the same NAT hole.
 //
 // Returns the "127.0.0.1:<port>" address that WireGuard should use as the
-// peer endpoint when relaying through this device's slot.
-func (d *Daemon) startRelayProxy(ctx context.Context) (string, error) {
+// peer endpoint when relaying through this device's slot, and a channel that
+// is closed when both proxy goroutines have exited.
+func (d *Daemon) startRelayProxy(ctx context.Context) (string, <-chan struct{}, error) {
 	// Outbound socket to relay server (single NAT mapping for keepalive + data)
 	relayAddr := fmt.Sprintf("%s:%d", d.relayHost, d.relayPort)
 	remoteAddr, err := net.ResolveUDPAddr("udp", relayAddr)
 	if err != nil {
-		return "", fmt.Errorf("resolving relay address %s: %w", relayAddr, err)
+		return "", nil, fmt.Errorf("resolving relay address %s: %w", relayAddr, err)
 	}
 	outbound, err := net.DialUDP("udp", nil, remoteAddr)
 	if err != nil {
-		return "", fmt.Errorf("dialing relay %s: %w", relayAddr, err)
+		return "", nil, fmt.Errorf("dialing relay %s: %w", relayAddr, err)
 	}
 
 	// Local listener for WireGuard traffic
 	local, err := net.ListenPacket("udp", "127.0.0.1:0")
 	if err != nil {
 		outbound.Close()
-		return "", fmt.Errorf("listening on localhost: %w", err)
+		return "", nil, fmt.Errorf("listening on localhost: %w", err)
 	}
 
 	localAddr := local.LocalAddr().String()
@@ -282,8 +286,13 @@ func (d *Daemon) startRelayProxy(ctx context.Context) (string, error) {
 	var wgAddr *net.UDPAddr
 	var wgAddrMu sync.Mutex
 
-	// Goroutine: relay -> local WireGuard
+	// Shared cancellation: either goroutine dying cancels the other.
+	proxyCtx, proxyCancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+
+	// Goroutine G1: relay -> local WireGuard
 	go func() {
+		defer proxyCancel()
 		defer local.Close()
 		defer outbound.Close()
 		buf := make([]byte, 1500)
@@ -301,22 +310,23 @@ func (d *Daemon) startRelayProxy(ctx context.Context) (string, error) {
 		}
 	}()
 
-	// Goroutine: local WireGuard -> relay + periodic keepalives
+	// Goroutine G2: local WireGuard -> relay + periodic keepalives
 	go func() {
+		defer proxyCancel()
+		defer close(done)
 		ticker := time.NewTicker(relayKeepaliveInterval)
 		defer ticker.Stop()
 
-		// Set a read deadline so we can check ctx and send keepalives
 		buf := make([]byte, 1500)
 		for {
 			select {
-			case <-ctx.Done():
+			case <-proxyCtx.Done():
 				local.Close()
 				outbound.Close()
 				return
 			case <-ticker.C:
 				if _, err := outbound.Write(keepalive); err != nil {
-					log.Printf("relay proxy: keepalive: %v", err)
+					return
 				}
 			default:
 				local.SetReadDeadline(time.Now().Add(1 * time.Second))
@@ -335,13 +345,13 @@ func (d *Daemon) startRelayProxy(ctx context.Context) (string, error) {
 				}
 				// Forward to relay
 				if _, err := outbound.Write(buf[:n]); err != nil {
-					log.Printf("relay proxy: forward to relay: %v", err)
+					return
 				}
 			}
 		}
 	}()
 
-	return localAddr, nil
+	return localAddr, done, nil
 }
 
 // checkConnectivity inspects WireGuard handshake times and switches peers
@@ -454,14 +464,24 @@ func (d *Daemon) syncPeers() {
 }
 
 func (d *Daemon) storePeers(peers []api.Peer) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	newPeers := make(map[string]api.Peer, len(peers))
 	for _, p := range peers {
 		if p.ID == d.cfg.DeviceID {
 			continue
 		}
-		d.peersByKey[p.PublicKey] = p
+		newPeers[p.PublicKey] = p
 	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	// Clean up relay state for peers that no longer exist
+	for pubKey := range d.peersByKey {
+		if _, stillPresent := newPeers[pubKey]; !stillPresent {
+			delete(d.usingRelay, pubKey)
+			delete(d.switchedToRelay, pubKey)
+		}
+	}
+	d.peersByKey = newPeers
 }
 
 // sharedRelayEndpoint returns the endpoint that WireGuard should use to reach

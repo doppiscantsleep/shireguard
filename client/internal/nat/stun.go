@@ -9,30 +9,37 @@ import (
 )
 
 const (
-	stunServer     = "stun.l.google.com:19302"
-	stunMagicCookie = uint32(0x2112A442)
-	stunBindingRequest = uint16(0x0001)
+	stunMagicCookie          = uint32(0x2112A442)
+	stunBindingRequest       = uint16(0x0001)
 	stunAttrXORMappedAddress = uint16(0x0020)
 )
 
-// DiscoverEndpoint sends a STUN binding request to stun.l.google.com:19302
-// and returns the observed public "IP:port" string, or "" on failure.
-// It first tries to bind to localPort (e.g. 51820) so the discovered external
-// address matches WireGuard's actual UDP socket. Falls back to ephemeral port.
+// stunServers is tried in order; the first successful response wins.
+var stunServers = []string{
+	"stun.l.google.com:19302",
+	"stun.cloudflare.com:3478",
+}
+
+// DiscoverEndpoint returns the observed public "IP:port" by querying STUN
+// servers in order until one responds. It first tries to bind to localPort
+// (e.g. 51820) so the discovered external address matches WireGuard's actual
+// UDP socket. Falls back to an ephemeral port if that binding fails.
 func DiscoverEndpoint(localPort int) string {
-	// Try binding to the requested local port first
+	// Try binding to the requested local port first.
 	if localPort > 0 {
 		local := &net.UDPAddr{Port: localPort}
-		conn, err := net.ListenUDP("udp", local)
-		if err == nil {
+		if conn, err := net.ListenUDP("udp", local); err == nil {
 			defer conn.Close()
-			conn.SetDeadline(time.Now().Add(3 * time.Second))
-			remote, err := net.ResolveUDPAddr("udp", stunServer)
-			if err != nil {
-				return ""
-			}
-			req := makeSTUNRequest()
-			if _, err := conn.WriteTo(req, remote); err == nil {
+			for _, srv := range stunServers {
+				remote, err := net.ResolveUDPAddr("udp", srv)
+				if err != nil {
+					continue
+				}
+				conn.SetDeadline(time.Now().Add(3 * time.Second))
+				req := makeSTUNRequest()
+				if _, err := conn.WriteTo(req, remote); err != nil {
+					continue
+				}
 				resp := make([]byte, 512)
 				if n, _, err := conn.ReadFrom(resp); err == nil {
 					if ep := parseXORMappedAddress(resp[:n], req[8:20]); ep != "" {
@@ -43,27 +50,30 @@ func DiscoverEndpoint(localPort int) string {
 		}
 	}
 
-	// Fall back to ephemeral port
-	conn, err := net.Dial("udp", stunServer)
-	if err != nil {
-		return ""
+	// Fall back to ephemeral port, trying each server in order.
+	for _, srv := range stunServers {
+		conn, err := net.Dial("udp", srv)
+		if err != nil {
+			continue
+		}
+		conn.SetDeadline(time.Now().Add(3 * time.Second))
+		req := makeSTUNRequest()
+		if _, err := conn.Write(req); err != nil {
+			conn.Close()
+			continue
+		}
+		resp := make([]byte, 512)
+		n, err := conn.Read(resp)
+		conn.Close()
+		if err != nil || n < 20 {
+			continue
+		}
+		if ep := parseXORMappedAddress(resp[:n], req[8:20]); ep != "" {
+			return ep
+		}
 	}
-	defer conn.Close()
 
-	conn.SetDeadline(time.Now().Add(3 * time.Second))
-
-	req := makeSTUNRequest()
-	if _, err := conn.Write(req); err != nil {
-		return ""
-	}
-
-	resp := make([]byte, 512)
-	n, err := conn.Read(resp)
-	if err != nil || n < 20 {
-		return ""
-	}
-
-	return parseXORMappedAddress(resp[:n], req[8:20])
+	return ""
 }
 
 // makeSTUNRequest builds a minimal 20-byte STUN binding request.

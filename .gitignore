@@ -34,3 +34,6 @@ coverage/
 
 .claude/
 **/.claude/
+
+# Local runbook — never commit
+therunbook.md

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/shireguard/shireguard/internal/api"
 	"github.com/shireguard/shireguard/internal/config"
 )
 
@@ -117,6 +118,30 @@ func (s State) EmailLabel() string {
 		return "Not logged in"
 	}
 	return s.Email
+}
+
+// FetchPeers fetches the peer list from the control plane, excluding this device.
+func FetchPeers(cfg *config.Config) ([]api.Peer, error) {
+	if !cfg.IsLoggedIn() || cfg.NetworkID == "" {
+		return nil, nil
+	}
+	client := api.New(cfg.APIURL, cfg.AccessToken, cfg.RefreshToken, func(access, refresh string) {
+		cfg.AccessToken = access
+		cfg.RefreshToken = refresh
+		_ = cfg.Save()
+	})
+	peers, err := client.GetPeers(cfg.NetworkID)
+	if err != nil {
+		return nil, err
+	}
+	// Filter out this device.
+	filtered := peers[:0]
+	for _, p := range peers {
+		if p.ID != cfg.DeviceID {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered, nil
 }
 
 // launchAgentPath returns the path to the LaunchAgent plist.

@@ -63,6 +63,52 @@
   --blue-dim:rgba(26,74,122,.08);
 }
 
+/* ── Dwarven Mount — deep in Erebor, forge-fire and hammered gold ── */
+[data-theme="dwarf"]{
+  --bg-root:#0c0907;
+  --bg-surface:#181008;
+  --bg-elevated:#211508;
+  --bg-input:#181008;
+  --border:#3d2010;
+  --border-focus:#b86010;
+  --text-primary:#dca840;
+  --text-secondary:#906828;
+  --text-muted:#583818;
+  --accent:#c06410;
+  --accent-dim:rgba(192,100,16,.15);
+  --amber:#e08818;
+  --amber-dim:rgba(224,136,24,.15);
+  --red:#c02818;
+  --red-dim:rgba(192,40,24,.13);
+  --green:#507038;
+  --green-dim:rgba(80,112,56,.13);
+  --blue:#485870;
+  --blue-dim:rgba(72,88,112,.13);
+}
+
+/* ── Elven River — Rivendell at midnight, moonlit water and silver mist ── */
+[data-theme="elven"]{
+  --bg-root:#050c14;
+  --bg-surface:#09141f;
+  --bg-elevated:#0d1c2a;
+  --bg-input:#09141f;
+  --border:#162c42;
+  --border-focus:#3e8ab0;
+  --text-primary:#b8d4e8;
+  --text-secondary:#5e8aaa;
+  --text-muted:#2c4c60;
+  --accent:#3e8ab0;
+  --accent-dim:rgba(62,138,176,.13);
+  --amber:#8ab0c8;
+  --amber-dim:rgba(138,176,200,.13);
+  --red:#8050a0;
+  --red-dim:rgba(128,80,160,.13);
+  --green:#3a8060;
+  --green-dim:rgba(58,128,96,.13);
+  --blue:#4878c0;
+  --blue-dim:rgba(72,120,192,.13);
+}
+
 html{font-size:14px}
 body{
   font-family:var(--font-sans);
@@ -90,6 +136,16 @@ body{
     radial-gradient(ellipse 600px 400px at 30% 20%,rgba(61,107,31,.09),transparent),
     radial-gradient(ellipse 500px 500px at 70% 80%,rgba(212,165,32,.08),transparent);
 }
+[data-theme="dwarf"] #auth-screen::before{
+  background:
+    radial-gradient(ellipse 500px 600px at 20% 75%,rgba(192,100,16,.12),transparent),
+    radial-gradient(ellipse 400px 400px at 80% 25%,rgba(192,40,24,.07),transparent);
+}
+[data-theme="elven"] #auth-screen::before{
+  background:
+    radial-gradient(ellipse 700px 350px at 50% 15%,rgba(62,138,176,.09),transparent),
+    radial-gradient(ellipse 400px 500px at 85% 80%,rgba(72,120,192,.06),transparent);
+}
 .auth-container{
   position:relative;width:100%;max-width:400px;padding:2rem;
 }
@@ -110,6 +166,12 @@ body{
   text-transform:uppercase;color:var(--text-muted);text-align:center;margin-bottom:1.2rem;
 }
 .auth-btn-group{display:flex;flex-direction:column;gap:.45rem}
+.auth-footer{margin-top:1.75rem;text-align:center}
+.auth-footer-desc{font-size:.75rem;color:var(--text-muted);line-height:1.65;margin-bottom:.75rem;max-width:320px;margin-left:auto;margin-right:auto}
+.auth-footer-links{display:flex;align-items:center;justify-content:center;gap:.5rem}
+.auth-footer-link{display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem;color:var(--text-muted);text-decoration:none;transition:color .15s}
+.auth-footer-link:hover{color:var(--accent)}
+.auth-footer-sep{color:var(--text-muted);opacity:.4;font-size:.75rem}
 .auth-mountains{position:relative;height:86px}
 .auth-mountains svg{position:absolute;inset:0;width:100%;height:100%}
 .auth-mountains-fade{
@@ -195,15 +257,17 @@ body{
 /* ── Theme Toggle ── */
 .btn-theme-toggle{
   background:none;border:1px solid var(--border);color:var(--text-secondary);
-  padding:.3rem .45rem;cursor:pointer;display:flex;align-items:center;
+  padding:.3rem .65rem;cursor:pointer;display:flex;align-items:center;
   justify-content:center;transition:all .15s;border-radius:var(--radius);
+  font-family:var(--font-sans);font-size:.72rem;font-weight:500;white-space:nowrap;
 }
 .btn-theme-toggle:hover{color:var(--text-primary);border-color:var(--text-muted)}
-.btn-theme-toggle svg{width:15px;height:15px;display:block}
-[data-theme="dark"] .icon-sun{display:none}
-[data-theme="light"] .icon-moon{display:none}
 /* Floating toggle on auth screen */
 .btn-theme-float{position:fixed;top:1rem;right:1rem;z-index:200}
+/* Mountain SVG tinting per theme */
+[data-theme="light"] .auth-mountains svg{opacity:.15;filter:brightness(1.4)}
+[data-theme="dwarf"] .auth-mountains svg{opacity:.55;filter:hue-rotate(-80deg) saturate(.85)}
+[data-theme="elven"] .auth-mountains svg{opacity:.5;filter:hue-rotate(60deg) saturate(.8) brightness(.8)}
 
 .sidebar{
   position:fixed;top:var(--header-h);left:0;bottom:0;
@@ -616,10 +680,7 @@ body{
 <body>
 
 <!-- Floating theme toggle (visible on auth screen) -->
-<button class="btn-theme-toggle btn-theme-float" onclick="toggleTheme()" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">
-  <svg class="icon-sun" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-  <svg class="icon-moon" viewBox="0 0 16 16" fill="none"><path d="M13.5 9.5a6 6 0 1 1-7-7 4.5 4.5 0 0 0 7 7z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-</button>
+<button class="btn-theme-toggle btn-theme-float" onclick="toggleTheme()" title="Switch theme"><span class="theme-name">Shire Dark</span></button>
 
 <!-- AUTH SCREEN -->
 <div id="auth-screen">
@@ -704,6 +765,22 @@ body{
         <div class="auth-mountains-fade"></div>
       </div>
     </div>
+
+    <div class="auth-footer">
+      <p class="auth-footer-desc">Shireguard creates encrypted WireGuard tunnels between your devices — direct, peer-to-peer, with no traffic passing through any cloud.</p>
+      <div class="auth-footer-links">
+        <a href="/?page=tech" class="auth-footer-link" onclick="event.preventDefault();showAppAndNavigate('tech')">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="13" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
+          How It Works
+        </a>
+        <span class="auth-footer-sep">·</span>
+        <a href="https://github.com/doppiscantsleep/shireguard" target="_blank" class="auth-footer-link">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -719,10 +796,7 @@ body{
     </div>
     <div class="header-right">
       <span class="header-email" id="user-email"></span>
-      <button class="btn-theme-toggle" onclick="toggleTheme()" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">
-        <svg class="icon-sun" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-        <svg class="icon-moon" viewBox="0 0 16 16" fill="none"><path d="M13.5 9.5a6 6 0 1 1-7-7 4.5 4.5 0 0 0 7 7z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-      </button>
+      <button class="btn-theme-toggle" onclick="toggleTheme()" title="Switch theme"><span class="theme-name">Shire Dark</span></button>
       <button class="btn-logout" onclick="logout()">logout</button>
     </div>
   </header>
@@ -1903,13 +1977,39 @@ let currentPage = 'devices';
   }
 })();
 
+// ── Show app and jump to a page without requiring login (for static pages like tech) ──
+function showAppAndNavigate(page) {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  document.querySelector('.btn-theme-float').style.display = 'none';
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (navBtn) navBtn.classList.add('active');
+  document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+  const pageEl = document.getElementById(`page-${page}`);
+  if (pageEl) pageEl.style.display = '';
+}
+
 // ── Theme ──
+const themeOrder = ['dark', 'dwarf', 'elven', 'light'];
+const themeLabels = { dark: 'Shire Dark', light: 'Shire Light', dwarf: 'Dwarven Mount', elven: 'Elven River' };
+
 function toggleTheme() {
   const html = document.documentElement;
-  const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  const current = html.getAttribute('data-theme') || 'dark';
+  const next = themeOrder[(themeOrder.indexOf(current) + 1) % themeOrder.length];
   html.setAttribute('data-theme', next);
   localStorage.setItem('sg_theme', next);
+  updateThemeLabels();
 }
+
+function updateThemeLabels() {
+  const t = document.documentElement.getAttribute('data-theme') || 'dark';
+  const label = themeLabels[t] || t;
+  document.querySelectorAll('.theme-name').forEach(el => el.textContent = label);
+}
+
+updateThemeLabels();
 
 // ── API Client ──
 async function api(method, path, body) {

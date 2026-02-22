@@ -344,39 +344,55 @@ func downCmd() *cobra.Command {
 
 			pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 			if err != nil {
-				return fmt.Errorf("invalid pidfile: %v", err)
+				_ = os.Remove(pidPath)
+				return fmt.Errorf("invalid pidfile (removed)")
 			}
 
 			proc, err := os.FindProcess(pid)
 			if err != nil {
 				_ = os.Remove(pidPath)
-				return fmt.Errorf("process not found: %v", err)
+				return fmt.Errorf("process not found (pidfile removed)")
 			}
 
-			// Check the process is actually alive before signalling
+			// Check the process is actually alive before signalling.
 			if err := proc.Signal(syscall.Signal(0)); err != nil {
 				_ = os.Remove(pidPath)
-				return fmt.Errorf("shireguard is not running (stale pidfile removed)")
-			}
-
-			if err := proc.Signal(syscall.SIGTERM); err != nil {
-				return fmt.Errorf("failed to stop process: %v", err)
+				fmt.Printf("shireguard was not running (stale pidfile removed)\n")
+				return nil
 			}
 
 			fmt.Printf("Stopping shireguard (pid %d)...", pid)
 
-			// Wait up to 10s for the process to exit
-			deadline := time.Now().Add(10 * time.Second)
+			// Phase 1: SIGTERM — give the daemon 5s to shut down cleanly.
+			_ = proc.Signal(syscall.SIGTERM)
+			deadline := time.Now().Add(5 * time.Second)
 			for time.Now().Before(deadline) {
 				time.Sleep(200 * time.Millisecond)
 				if err := proc.Signal(syscall.Signal(0)); err != nil {
 					fmt.Println(" done")
+					_ = os.Remove(pidPath)
 					return nil
 				}
 				fmt.Print(".")
 			}
 
-			return fmt.Errorf("timed out waiting for shireguard to stop")
+			// Phase 2: SIGKILL — force-kill if SIGTERM was ignored.
+			fmt.Print(" (forcing)...")
+			_ = proc.Signal(syscall.SIGKILL)
+			deadline = time.Now().Add(3 * time.Second)
+			for time.Now().Before(deadline) {
+				time.Sleep(200 * time.Millisecond)
+				if err := proc.Signal(syscall.Signal(0)); err != nil {
+					fmt.Println(" done")
+					_ = os.Remove(pidPath)
+					return nil
+				}
+				fmt.Print(".")
+			}
+
+			// Process survived SIGKILL — extremely unlikely, just clean up pidfile.
+			_ = os.Remove(pidPath)
+			return fmt.Errorf("process %d did not exit after SIGKILL", pid)
 		},
 	}
 }

@@ -64,16 +64,30 @@ func newClient() *api.Client {
 }
 
 func loginCmd() *cobra.Command {
-	return &cobra.Command{
+	var useApple, useGoogle, useGitHub bool
+	cmd := &cobra.Command{
 		Use:   "login",
-		Short: "Log in with Apple Sign-In (opens browser)",
+		Short: "Log in via Apple, Google, or GitHub (opens browser)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return loginWithApple()
+			switch {
+			case useGoogle:
+				return loginWith("google", "Google")
+			case useGitHub:
+				return loginWith("github", "GitHub")
+			default:
+				return loginWith("apple", "Apple")
+			}
 		},
 	}
+	cmd.Flags().BoolVar(&useApple, "apple", false, "Sign in with Apple")
+	cmd.Flags().BoolVar(&useGoogle, "google", false, "Sign in with Google")
+	cmd.Flags().BoolVar(&useGitHub, "github", false, "Sign in with GitHub")
+	return cmd
 }
 
-func loginWithApple() error {
+func loginWithApple() error { return loginWith("apple", "Apple") }
+
+func loginWith(provider, label string) error {
 	// Generate a random 16-byte session ID
 	sessionBytes := make([]byte, 16)
 	if _, err := rand.Read(sessionBytes); err != nil {
@@ -81,9 +95,9 @@ func loginWithApple() error {
 	}
 	sessionID := hex.EncodeToString(sessionBytes)
 
-	authURL := fmt.Sprintf("%s/v1/auth/apple?cli_session=%s", cfg.APIURL, sessionID)
+	authURL := fmt.Sprintf("%s/v1/auth/%s?cli_session=%s", cfg.APIURL, provider, sessionID)
 
-	fmt.Println("Opening browser for Apple Sign-In...")
+	fmt.Printf("Opening browser for %s Sign-In...\n", label)
 	fmt.Printf("If your browser doesn't open automatically, visit:\n  %s\n\n", authURL)
 
 	switch runtime.GOOS {
@@ -106,7 +120,7 @@ func loginWithApple() error {
 		select {
 		case <-ctx.Done():
 			fmt.Println()
-			return fmt.Errorf("timed out waiting for Apple Sign-In (5 minutes)")
+			return fmt.Errorf("timed out waiting for %s Sign-In (5 minutes)", label)
 		case <-ticker.C:
 			fmt.Print(".")
 

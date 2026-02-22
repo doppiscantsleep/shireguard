@@ -58,6 +58,7 @@ archives:
     name_template: "shireguard_{{ .Os }}_{{ .Arch }}"
     formats:
       - tar.gz
+    allow_different_binary_count: true
 
   - id: relay
     builds:

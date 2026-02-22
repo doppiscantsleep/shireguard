@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
 	"fyne.io/systray"
@@ -79,7 +80,13 @@ func onReady() {
 				disconnectItem.Disable()
 				statusItem.SetTitle("Connecting…")
 				go func() {
-					exec.Command(shireguardBinary(), "up").Run()
+					if out, err := exec.Command(shireguardBinary(), "up").CombinedOutput(); err != nil {
+						msg := strings.TrimSpace(string(out))
+						if msg == "" {
+							msg = "Connect failed"
+						}
+						notify(msg)
+					}
 					// Give daemon a moment to start
 					time.Sleep(2 * time.Second)
 					curr := CurrentState()
@@ -91,7 +98,13 @@ func onReady() {
 				disconnectItem.Disable()
 				statusItem.SetTitle("Disconnecting…")
 				go func() {
-					exec.Command(shireguardBinary(), "down").Run()
+					if out, err := exec.Command(shireguardBinary(), "down").CombinedOutput(); err != nil {
+						msg := strings.TrimSpace(string(out))
+						if msg == "" {
+							msg = "Disconnect failed"
+						}
+						notify(msg)
+					}
 					time.Sleep(2 * time.Second)
 					curr := CurrentState()
 					applyState(curr, emailItem, statusItem, connectItem, disconnectItem, launchAtLoginItem)

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -27,6 +28,7 @@ import (
 
 var (
 	cfg     *config.Config
+	verbose bool
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
@@ -47,6 +49,7 @@ func main() {
 	}
 
 	root.PersistentFlags().StringVar(&cfg.APIURL, "api-url", cfg.APIURL, "Control plane API URL")
+	root.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose (debug) logging")
 
 	root.AddCommand(loginCmd(), registerDeviceCmd(), upCmd(), downCmd(), statusCmd(), devicesCmd(), logoutCmd())
 
@@ -255,6 +258,14 @@ func upCmd() *cobra.Command {
 
 			// Foreground mode: write pidfile and run the tunnel directly.
 			// Used by service managers (launchd, systemd) and by startDaemon().
+
+			// Configure structured logging level.
+			lvl := slog.LevelInfo
+			if verbose {
+				lvl = slog.LevelDebug
+			}
+			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})))
+
 			if pidPath, err := config.PidFile(); err == nil {
 				_ = os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0600)
 				defer os.Remove(pidPath)
@@ -315,7 +326,11 @@ func startDaemon() error {
 	}
 	defer logFile.Close()
 
-	child := exec.Command(exePath, "up", "--foreground")
+	args := []string{"up", "--foreground"}
+	if verbose {
+		args = append(args, "--verbose")
+	}
+	child := exec.Command(exePath, args...)
 	child.Stdout = logFile
 	child.Stderr = logFile
 	child.Stdin = nil

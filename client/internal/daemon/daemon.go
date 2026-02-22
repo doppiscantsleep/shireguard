@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"strconv"
 	"sync"
@@ -17,12 +17,14 @@ import (
 )
 
 const (
-	heartbeatInterval    = 30 * time.Second
-	peerSyncInterval     = 15 * time.Second
-	connectivityInterval = 30 * time.Second
+	heartbeatInterval      = 30 * time.Second
+	peerSyncInterval       = 15 * time.Second
+	connectivityInterval   = 30 * time.Second
 	relayKeepaliveInterval = 25 * time.Second
-	handshakeTimeout     = 90 * time.Second
-	relayBackoffDuration = 5 * time.Minute
+	handshakeTimeout       = 90 * time.Second
+	relayBackoffDuration   = 5 * time.Minute
+	relayReconnectBackoff  = 5 * time.Second
+	relayReconnectAttempts = 3
 )
 
 type Daemon struct {
@@ -35,19 +37,17 @@ type Daemon struct {
 	relayPort  int
 	relayToken []byte // 16 raw bytes
 
-	// Local relay proxy: a UDP proxy on localhost that bridges WireGuard
-	// traffic and keepalives through a single socket to the relay server.
-	// This ensures the keepalive and data packets share one NAT mapping.
-	relayProxyAddr string // "127.0.0.1:<port>" — set when proxy is running
+	// Local relay proxy address ("127.0.0.1:<port>") — set when proxy is running.
+	relayProxyAddr string
 
 	// STUN-discovered public endpoint, refreshed every 5 minutes.
 	stunMu       sync.RWMutex
 	stunEndpoint string
 
 	// Peer state (keyed by base64 public key)
-	mu             sync.RWMutex
-	peersByKey     map[string]api.Peer // pubKey → peer (includes relay info)
-	usingRelay     map[string]bool     // pubKey → true when relay is active
+	mu              sync.RWMutex
+	peersByKey      map[string]api.Peer // pubKey → peer (includes relay info)
+	usingRelay      map[string]bool     // pubKey → true when relay is active
 	switchedToRelay map[string]time.Time // pubKey → when we switched to relay
 }
 
@@ -81,9 +81,9 @@ func (d *Daemon) Run(ctx context.Context) error {
 	// Called before tunnel.Up() so port 51820 is still free to bind.
 	initialEndpoint := nat.DiscoverEndpoint(51820)
 	if initialEndpoint != "" {
-		log.Printf("STUN discovered endpoint: %s", initialEndpoint)
+		slog.Info("STUN discovered endpoint", "endpoint", initialEndpoint)
 	} else {
-		log.Println("STUN discovery failed, proceeding without public endpoint")
+		slog.Warn("STUN discovery failed, proceeding without public endpoint")
 	}
 	d.stunMu.Lock()
 	d.stunEndpoint = initialEndpoint
@@ -103,16 +103,15 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 	defer d.tunnel.Down()
 
-	log.Printf("tunnel up with IP %s", d.cfg.AssignedIP)
-	log.Printf("connected to %d peer(s)", len(tunnelCfg.Peers))
+	slog.Info("tunnel up", "ip", d.cfg.AssignedIP, "peers", len(tunnelCfg.Peers))
 
 	// 4. Send initial heartbeat with discovered endpoint
 	if err := d.client.Heartbeat(d.cfg.DeviceID, d.stunEndpoint); err != nil {
-		log.Printf("initial heartbeat failed: %v", err)
+		slog.Error("initial heartbeat failed", "err", err)
 	}
 
-	// 5. Register with relay (best-effort)
-	d.setupRelay(ctx)
+	// 5. Register with relay and watch for failures (best-effort)
+	go d.relayManager(ctx)
 
 	// 6. Run background loops
 	go d.stunRefreshLoop(ctx)
@@ -124,10 +123,13 @@ func (d *Daemon) Run(ctx context.Context) error {
 	defer peerSyncTicker.Stop()
 	defer checkConnTicker.Stop()
 
+	heartbeatFailures := 0
+	peerSyncFailures := 0
+
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("shutting down tunnel")
+			slog.Info("shutting down tunnel")
 			return nil
 
 		case <-heartbeatTicker.C:
@@ -135,11 +137,23 @@ func (d *Daemon) Run(ctx context.Context) error {
 			endpoint := d.stunEndpoint
 			d.stunMu.RUnlock()
 			if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint); err != nil {
-				log.Printf("heartbeat failed: %v", err)
+				heartbeatFailures++
+				slog.Error("heartbeat failed", "attempts", heartbeatFailures, "err", err)
+				heartbeatTicker.Reset(backoffDuration(heartbeatInterval, heartbeatFailures))
+			} else if heartbeatFailures > 0 {
+				heartbeatFailures = 0
+				heartbeatTicker.Reset(heartbeatInterval)
 			}
 
 		case <-peerSyncTicker.C:
-			d.syncPeers()
+			if err := d.syncPeers(); err != nil {
+				peerSyncFailures++
+				slog.Error("peer sync failed", "attempts", peerSyncFailures, "err", err)
+				peerSyncTicker.Reset(backoffDuration(peerSyncInterval, peerSyncFailures))
+			} else if peerSyncFailures > 0 {
+				peerSyncFailures = 0
+				peerSyncTicker.Reset(peerSyncInterval)
+			}
 
 		case <-checkConnTicker.C:
 			d.checkConnectivity()
@@ -147,52 +161,149 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 }
 
-// setupRelay registers this device with the relay via the control plane,
-// stores the result, and starts the local relay proxy.
-func (d *Daemon) setupRelay(ctx context.Context) {
+// backoffDuration returns base * 2^failures, capped at 5 minutes.
+func backoffDuration(base time.Duration, failures int) time.Duration {
+	d := base
+	for i := 0; i < failures; i++ {
+		d *= 2
+		if d > 5*time.Minute {
+			return 5 * time.Minute
+		}
+	}
+	return d
+}
+
+// relayManager registers this device with the relay, then watches for proxy
+// failure and reconnects with exponential backoff (up to 3 attempts).
+// If all reconnect attempts fail, relay is disabled for this daemon session.
+func (d *Daemon) relayManager(ctx context.Context) {
+	died := d.setupRelayOnce(ctx)
+	if died == nil {
+		return // initial setup failed; relay unavailable
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-died:
+		}
+
+		if ctx.Err() != nil {
+			return
+		}
+
+		slog.Warn("relay proxy died, attempting reconnection")
+
+		backoff := relayReconnectBackoff
+		var newDied <-chan struct{}
+		for attempt := 1; attempt <= relayReconnectAttempts; attempt++ {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+			}
+
+			newDied = d.setupRelayOnce(ctx)
+			if newDied != nil {
+				slog.Info("relay reconnected", "attempt", attempt)
+				d.updateRelayEndpoints()
+				break
+			}
+			slog.Error("relay reconnect attempt failed", "attempt", attempt, "of", relayReconnectAttempts)
+			backoff *= 2
+		}
+
+		if newDied == nil {
+			slog.Error("relay reconnection exhausted, relay unavailable until daemon restart")
+			d.clearRelayFallback()
+			return
+		}
+
+		died = newDied
+	}
+}
+
+// setupRelayOnce registers this device with the relay, stores the result, and
+// starts the local relay proxy. Returns the proxy's done channel (closed when
+// the proxy exits), or nil if any step fails.
+func (d *Daemon) setupRelayOnce(ctx context.Context) <-chan struct{} {
 	reg, err := d.client.RegisterDeviceWithRelay(d.cfg.DeviceID)
 	if err != nil {
-		log.Printf("relay registration failed: %v", err)
-		return
+		slog.Error("relay registration failed", "err", err)
+		return nil
 	}
 
 	tokenBytes, err := hex.DecodeString(reg.RelayToken)
 	if err != nil || len(tokenBytes) != 16 {
-		log.Printf("invalid relay token: %v", err)
-		return
+		slog.Error("invalid relay token", "err", err)
+		return nil
 	}
 
 	d.relayHost = reg.RelayHost
 	d.relayPort = reg.RelayPort
 	d.relayToken = tokenBytes
 
-	log.Printf("registered with relay %s on port %d", reg.RelayHost, reg.RelayPort)
+	slog.Info("registered with relay", "host", reg.RelayHost, "port", reg.RelayPort)
 
 	// Store relay endpoint in control plane so peers can discover us
 	if err := d.client.StoreRelayEndpoint(d.cfg.DeviceID, reg.RelayHost, reg.RelayPort); err != nil {
-		log.Printf("storing relay endpoint failed: %v", err)
+		slog.Error("storing relay endpoint failed", "err", err)
 	}
 
 	// Start a local UDP proxy that bridges WireGuard and the relay through
-	// a single outbound socket. This ensures keepalives and data share one
-	// NAT mapping, so the relay can forward return traffic correctly.
+	// a single outbound socket.
 	proxyAddr, died, err := d.startRelayProxy(ctx)
 	if err != nil {
-		log.Printf("relay proxy failed to start: %v", err)
-		return
+		slog.Error("relay proxy failed to start", "err", err)
+		return nil
 	}
 	d.relayProxyAddr = proxyAddr
-	log.Printf("relay proxy listening on %s", proxyAddr)
+	slog.Info("relay proxy listening", "addr", proxyAddr)
 
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-died:
-			if ctx.Err() == nil {
-				log.Printf("relay proxy died unexpectedly — relay fallback unavailable until restart")
-			}
+	return died
+}
+
+// updateRelayEndpoints re-applies relay WireGuard endpoints for all peers
+// currently using relay. Called after the relay proxy reconnects with a new
+// proxy address.
+func (d *Daemon) updateRelayEndpoints() {
+	d.mu.RLock()
+	peers := make(map[string]api.Peer, len(d.peersByKey))
+	for k, v := range d.peersByKey {
+		peers[k] = v
+	}
+	usingRelaySnap := make(map[string]bool, len(d.usingRelay))
+	for k, v := range d.usingRelay {
+		usingRelaySnap[k] = v
+	}
+	d.mu.RUnlock()
+
+	for pubKey, peer := range peers {
+		if !usingRelaySnap[pubKey] {
+			continue
 		}
-	}()
+		newEndpoint := d.sharedRelayEndpoint(peer)
+		if err := d.tunnel.UpdatePeerEndpoint(pubKey, newEndpoint); err != nil {
+			slog.Error("updating relay endpoint after reconnect", "peer", pubKey[:8], "err", err)
+		} else {
+			slog.Info("updated relay endpoint after reconnect", "peer", pubKey[:8], "endpoint", newEndpoint)
+		}
+	}
+}
+
+// clearRelayFallback clears all relay state so peers fall back to direct
+// connection. Called when relay reconnection is exhausted.
+func (d *Daemon) clearRelayFallback() {
+	d.mu.Lock()
+	d.relayHost = ""
+	d.relayPort = 0
+	d.relayToken = nil
+	d.relayProxyAddr = ""
+	for k := range d.usingRelay {
+		d.usingRelay[k] = false
+	}
+	d.mu.Unlock()
 }
 
 // stunRefreshLoop periodically re-discovers the public endpoint via STUN and
@@ -225,9 +336,9 @@ func (d *Daemon) stunRefreshLoop(ctx context.Context) {
 			d.stunMu.Unlock()
 
 			if changed {
-				log.Printf("[stun] endpoint changed to %s, sending heartbeat", endpoint)
+				slog.Info("STUN endpoint changed, sending heartbeat", "endpoint", endpoint)
 				if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint); err != nil {
-					log.Printf("[stun] heartbeat failed: %v", err)
+					slog.Error("heartbeat after STUN change failed", "err", err)
 				}
 			}
 		}
@@ -247,7 +358,7 @@ func (d *Daemon) stunRefreshLoop(ctx context.Context) {
 //
 // Returns the "127.0.0.1:<port>" address that WireGuard should use as the
 // peer endpoint when relaying through this device's slot, and a channel that
-// is closed when both proxy goroutines have exited.
+// is closed when the forwarding goroutine (G2) has exited.
 func (d *Daemon) startRelayProxy(ctx context.Context) (string, <-chan struct{}, error) {
 	// Outbound socket to relay server (single NAT mapping for keepalive + data)
 	relayAddr := fmt.Sprintf("%s:%d", d.relayHost, d.relayPort)
@@ -270,7 +381,6 @@ func (d *Daemon) startRelayProxy(ctx context.Context) (string, <-chan struct{}, 
 	localAddr := local.LocalAddr().String()
 
 	// Build keepalive packet: [0xFF][0x00][0x00][token 16 bytes] = 19 bytes
-	// The two reserved bytes after 0xFF are no longer used for port embedding.
 	keepalive := make([]byte, 19)
 	keepalive[0] = 0xFF
 	keepalive[1] = 0x00
@@ -279,22 +389,29 @@ func (d *Daemon) startRelayProxy(ctx context.Context) (string, <-chan struct{}, 
 
 	// Send initial keepalive
 	if _, err := outbound.Write(keepalive); err != nil {
-		log.Printf("relay proxy: initial keepalive: %v", err)
+		slog.Error("relay proxy: initial keepalive failed", "err", err)
 	}
 
 	// Track the WireGuard device's local address (set on first packet from it)
 	var wgAddr *net.UDPAddr
 	var wgAddrMu sync.Mutex
 
-	// Shared cancellation: either goroutine dying cancels the other.
+	// Shared cancellation: any goroutine exiting cancels the others.
 	proxyCtx, proxyCancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 
-	// Goroutine G1: relay -> local WireGuard
+	// Context watcher: close sockets when the proxy context is cancelled so
+	// that G1 (blocked on outbound.Read) and G2 (blocked on local.ReadFrom)
+	// both unblock and exit promptly.
+	go func() {
+		<-proxyCtx.Done()
+		outbound.Close()
+		local.Close()
+	}()
+
+	// G1: relay → local WireGuard
 	go func() {
 		defer proxyCancel()
-		defer local.Close()
-		defer outbound.Close()
 		buf := make([]byte, 1500)
 		for {
 			n, err := outbound.Read(buf)
@@ -310,41 +427,41 @@ func (d *Daemon) startRelayProxy(ctx context.Context) (string, <-chan struct{}, 
 		}
 	}()
 
-	// Goroutine G2: local WireGuard -> relay + periodic keepalives
+	// G2: local WireGuard → relay (pure blocking read; no keepalive logic here)
 	go func() {
 		defer proxyCancel()
 		defer close(done)
+		buf := make([]byte, 1500)
+		for {
+			n, addr, err := local.ReadFrom(buf)
+			if err != nil {
+				return
+			}
+			// Remember the WireGuard device's address for return traffic
+			if udpAddr, ok := addr.(*net.UDPAddr); ok {
+				wgAddrMu.Lock()
+				wgAddr = udpAddr
+				wgAddrMu.Unlock()
+			}
+			// Forward to relay
+			if _, err := outbound.Write(buf[:n]); err != nil {
+				return
+			}
+		}
+	}()
+
+	// G3: keepalive sender — fires independently of data forwarding so the
+	// keepalive interval is always honoured regardless of traffic volume.
+	go func() {
 		ticker := time.NewTicker(relayKeepaliveInterval)
 		defer ticker.Stop()
-
-		buf := make([]byte, 1500)
 		for {
 			select {
 			case <-proxyCtx.Done():
-				local.Close()
-				outbound.Close()
 				return
 			case <-ticker.C:
 				if _, err := outbound.Write(keepalive); err != nil {
-					return
-				}
-			default:
-				local.SetReadDeadline(time.Now().Add(1 * time.Second))
-				n, addr, err := local.ReadFrom(buf)
-				if err != nil {
-					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-						continue
-					}
-					return
-				}
-				// Remember the WireGuard device's address for return traffic
-				if udpAddr, ok := addr.(*net.UDPAddr); ok {
-					wgAddrMu.Lock()
-					wgAddr = udpAddr
-					wgAddrMu.Unlock()
-				}
-				// Forward to relay
-				if _, err := outbound.Write(buf[:n]); err != nil {
+					proxyCancel() // trigger socket cleanup
 					return
 				}
 			}
@@ -359,7 +476,7 @@ func (d *Daemon) startRelayProxy(ctx context.Context) (string, <-chan struct{}, 
 func (d *Daemon) checkConnectivity() {
 	stats, err := d.tunnel.GetPeerStats()
 	if err != nil {
-		log.Printf("connectivity check: %v", err)
+		slog.Error("connectivity check failed", "err", err)
 		return
 	}
 
@@ -382,25 +499,22 @@ func (d *Daemon) checkConnectivity() {
 
 		if noHandshake && !usingRelay && d.relayHost != "" {
 			// No recent handshake → switch to relay.
-			// Both devices must use the same relay port so each has a NAT hole
-			// for it. Use the relay port of whichever device has the lower IP.
 			if peer.RelayHost == "" || peer.RelayPort == 0 {
 				continue // peer hasn't registered with relay yet
 			}
 			relayEndpoint := d.sharedRelayEndpoint(peer)
 			if err := d.tunnel.UpdatePeerEndpoint(pubKey, relayEndpoint); err != nil {
-				log.Printf("switch to relay for %s: %v", pubKey[:8], err)
+				slog.Error("switch to relay failed", "peer", pubKey[:8], "err", err)
 				continue
 			}
-			log.Printf("switching peer %s... to relay (%s)", pubKey[:8], relayEndpoint)
+			slog.Info("switching peer to relay", "peer", pubKey[:8], "endpoint", relayEndpoint)
 			d.mu.Lock()
 			d.usingRelay[pubKey] = true
 			d.switchedToRelay[pubKey] = time.Now()
 			d.mu.Unlock()
 
 		} else if !noHandshake && usingRelay {
-			// Handshake is working and we've been on relay for at least 5 min;
-			// attempt to return to direct.
+			// Handshake is working; attempt to return to direct after backoff.
 			if time.Since(switchedAt) < relayBackoffDuration {
 				continue
 			}
@@ -412,10 +526,10 @@ func (d *Daemon) checkConnectivity() {
 				continue
 			}
 			if err := d.tunnel.UpdatePeerEndpoint(pubKey, directEndpoint); err != nil {
-				log.Printf("switch to direct for %s: %v", pubKey[:8], err)
+				slog.Error("switch to direct failed", "peer", pubKey[:8], "err", err)
 				continue
 			}
-			log.Printf("switching peer %s... back to direct (%s)", pubKey[:8], directEndpoint)
+			slog.Info("switching peer back to direct", "peer", pubKey[:8], "endpoint", directEndpoint)
 			d.mu.Lock()
 			d.usingRelay[pubKey] = false
 			delete(d.switchedToRelay, pubKey)
@@ -424,11 +538,10 @@ func (d *Daemon) checkConnectivity() {
 	}
 }
 
-func (d *Daemon) syncPeers() {
+func (d *Daemon) syncPeers() error {
 	peers, err := d.client.GetPeers(d.cfg.NetworkID)
 	if err != nil {
-		log.Printf("peer sync failed: %v", err)
-		return
+		return fmt.Errorf("getting peers: %w", err)
 	}
 
 	d.storePeers(peers)
@@ -459,8 +572,9 @@ func (d *Daemon) syncPeers() {
 	}
 
 	if err := d.tunnel.UpdatePeers(peerConfigs); err != nil {
-		log.Printf("updating peers: %v", err)
+		return fmt.Errorf("updating peers in tunnel: %w", err)
 	}
+	return nil
 }
 
 func (d *Daemon) storePeers(peers []api.Peer) {
@@ -508,8 +622,6 @@ func (d *Daemon) sharedRelayEndpoint(peer api.Peer) string {
 		return d.relayHost + ":" + strconv.Itoa(d.relayPort)
 	}
 	// Peer's IP is lower — use peer's relay port directly.
-	// We are the "peer" for this slot; the relay will learn our address
-	// from our WireGuard packets.
 	return peer.RelayHost + ":" + strconv.Itoa(peer.RelayPort)
 }
 
@@ -550,4 +662,3 @@ func (d *Daemon) buildTunnelConfig(peers []api.Peer) *wg.TunnelConfig {
 
 	return cfg
 }
-

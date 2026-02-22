@@ -263,7 +263,6 @@ func (slot *RelaySlot) serve(conn net.PacketConn) {
 				dst = home
 			}
 			slot.mu.Unlock()
-			log.Printf("relay port %s: pkt from %s fromHome=%v dst=%v len=%d", conn.LocalAddr(), udpAddr, fromHome, dst, n)
 			if dst != nil {
 				conn.WriteTo(buf[:n], dst)
 				slot.metrics.packetsForwarded.Inc()

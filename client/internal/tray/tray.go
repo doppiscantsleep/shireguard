@@ -4,6 +4,7 @@ package tray
 
 import (
 	_ "embed"
+	"fmt"
 	"os/exec"
 	"time"
 
@@ -41,17 +42,31 @@ func onReady() {
 
 	systray.AddSeparator()
 
+	launchAtLoginItem := systray.AddMenuItem("  Launch at Login", "Start automatically at login")
+
+	systray.AddSeparator()
+
 	quitItem := systray.AddMenuItem("Quit", "Quit Shireguard Menu Bar")
 
-	// Apply initial state immediately
-	applyState(CurrentState(), emailItem, statusItem, connectItem, disconnectItem)
+	// Apply initial state and capture it as previous for change detection.
+	prev := CurrentState()
+	applyState(prev, emailItem, statusItem, connectItem, disconnectItem, launchAtLoginItem)
 
-	// Polling goroutine
+	// Polling goroutine — detects state changes and fires notifications.
 	go func() {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
-			applyState(CurrentState(), emailItem, statusItem, connectItem, disconnectItem)
+			curr := CurrentState()
+			if curr.Connected != prev.Connected {
+				if curr.Connected {
+					notify("Connected")
+				} else {
+					notify("Disconnected")
+				}
+			}
+			prev = curr
+			applyState(curr, emailItem, statusItem, connectItem, disconnectItem, launchAtLoginItem)
 		}
 	}()
 
@@ -67,7 +82,8 @@ func onReady() {
 					exec.Command(shireguardBinary(), "up").Run()
 					// Give daemon a moment to start
 					time.Sleep(2 * time.Second)
-					applyState(CurrentState(), emailItem, statusItem, connectItem, disconnectItem)
+					curr := CurrentState()
+					applyState(curr, emailItem, statusItem, connectItem, disconnectItem, launchAtLoginItem)
 				}()
 
 			case <-disconnectItem.ClickedCh:
@@ -77,8 +93,18 @@ func onReady() {
 				go func() {
 					exec.Command(shireguardBinary(), "down").Run()
 					time.Sleep(2 * time.Second)
-					applyState(CurrentState(), emailItem, statusItem, connectItem, disconnectItem)
+					curr := CurrentState()
+					applyState(curr, emailItem, statusItem, connectItem, disconnectItem, launchAtLoginItem)
 				}()
+
+			case <-launchAtLoginItem.ClickedCh:
+				s := CurrentState()
+				SetLaunchAtLogin(!s.LaunchAtLogin)
+				if IsLaunchAtLoginEnabled() {
+					launchAtLoginItem.SetTitle("✓ Launch at Login")
+				} else {
+					launchAtLoginItem.SetTitle("  Launch at Login")
+				}
 
 			case <-quitItem.ClickedCh:
 				systray.Quit()
@@ -88,7 +114,7 @@ func onReady() {
 	}()
 }
 
-func applyState(s State, email, status, connect, disconnect *systray.MenuItem) {
+func applyState(s State, email, status, connect, disconnect, launchAtLogin *systray.MenuItem) {
 	// Update email label
 	email.SetTitle(s.EmailLabel())
 
@@ -98,6 +124,13 @@ func applyState(s State, email, status, connect, disconnect *systray.MenuItem) {
 		systray.SetIcon(iconConnected)
 	} else {
 		systray.SetIcon(iconDisconnected)
+	}
+
+	// Update launch at login label
+	if s.LaunchAtLogin {
+		launchAtLogin.SetTitle("✓ Launch at Login")
+	} else {
+		launchAtLogin.SetTitle("  Launch at Login")
 	}
 
 	// Update connect/disconnect enabled state
@@ -114,4 +147,11 @@ func applyState(s State, email, status, connect, disconnect *systray.MenuItem) {
 		connect.Enable()
 		disconnect.Disable()
 	}
+}
+
+// notify sends a macOS notification via osascript (no entitlements required).
+func notify(subtitle string) {
+	exec.Command("osascript", "-e",
+		fmt.Sprintf(`display notification %q with title "Shireguard"`, subtitle),
+	).Run()
 }

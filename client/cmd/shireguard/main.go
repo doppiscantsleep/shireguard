@@ -51,7 +51,7 @@ func main() {
 	root.PersistentFlags().StringVar(&cfg.APIURL, "api-url", cfg.APIURL, "Control plane API URL")
 	root.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose (debug) logging")
 
-	root.AddCommand(loginCmd(), registerDeviceCmd(), upCmd(), downCmd(), statusCmd(), devicesCmd(), logoutCmd())
+	root.AddCommand(loginCmd(), registerDeviceCmd(), upCmd(), downCmd(), statusCmd(), devicesCmd(), logoutCmd(), installCmd())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -498,6 +498,31 @@ func devicesCmd() *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+func installCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "install",
+		Short: "Install sudoers rule so the menu bar can start/stop the tunnel without a password",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			exePath, err := os.Executable()
+			if err != nil {
+				return fmt.Errorf("resolving executable path: %w", err)
+			}
+
+			rule := fmt.Sprintf("ALL ALL=(ALL) NOPASSWD: %s\n", exePath)
+			dest := "/etc/sudoers.d/shireguard"
+
+			if err := os.WriteFile(dest, []byte(rule), 0440); err != nil {
+				return fmt.Errorf("writing %s (try: sudo shireguard install): %w", dest, err)
+			}
+
+			fmt.Printf("Installed sudoers rule: %s\n", dest)
+			fmt.Printf("Rule: %s", rule)
+			fmt.Println("The menu bar can now start and stop the tunnel without a password prompt.")
+			return nil
+		},
+	}
 }
 
 func logoutCmd() *cobra.Command {

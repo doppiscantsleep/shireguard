@@ -63,8 +63,15 @@ func daemonRunning() bool {
 	}
 
 	// kill -0 checks if the process exists without sending a signal.
+	// EPERM means the process exists but is owned by root (daemon ran via sudo).
 	err = proc.Signal(syscall.Signal(0))
-	return err == nil
+	if err == nil {
+		return true
+	}
+	if errno, ok := err.(syscall.Errno); ok && errno == syscall.EPERM {
+		return true
+	}
+	return false
 }
 
 // shireguardBinary returns the path to the shireguard binary.

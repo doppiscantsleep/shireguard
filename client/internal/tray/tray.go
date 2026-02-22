@@ -80,7 +80,7 @@ func onReady() {
 				disconnectItem.Disable()
 				statusItem.SetTitle("Connecting…")
 				go func() {
-					if out, err := exec.Command(shireguardBinary(), "up").CombinedOutput(); err != nil {
+					if out, err := exec.Command("sudo", "-n", "-E", shireguardBinary(), "up").CombinedOutput(); err != nil {
 						msg := strings.TrimSpace(string(out))
 						if msg == "" {
 							msg = "Connect failed"
@@ -98,7 +98,7 @@ func onReady() {
 				disconnectItem.Disable()
 				statusItem.SetTitle("Disconnecting…")
 				go func() {
-					if out, err := exec.Command(shireguardBinary(), "down").CombinedOutput(); err != nil {
+					if out, err := exec.Command("sudo", "-n", "-E", shireguardBinary(), "down").CombinedOutput(); err != nil {
 						msg := strings.TrimSpace(string(out))
 						if msg == "" {
 							msg = "Disconnect failed"

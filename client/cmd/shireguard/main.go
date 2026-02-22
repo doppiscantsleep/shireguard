@@ -510,7 +510,7 @@ func installCmd() *cobra.Command {
 				return fmt.Errorf("resolving executable path: %w", err)
 			}
 
-			rule := fmt.Sprintf("ALL ALL=(ALL) NOPASSWD: %s\n", exePath)
+			rule := fmt.Sprintf("ALL ALL=(ALL) SETENV: NOPASSWD: %s\n", exePath)
 			dest := "/etc/sudoers.d/shireguard"
 
 			if err := os.WriteFile(dest, []byte(rule), 0440); err != nil {

@@ -237,7 +237,8 @@ func registerDeviceCmd() *cobra.Command {
 }
 
 func upCmd() *cobra.Command {
-	return &cobra.Command{
+	var foreground bool
+	cmd := &cobra.Command{
 		Use:   "up",
 		Short: "Start the WireGuard tunnel",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -248,7 +249,12 @@ func upCmd() *cobra.Command {
 				return fmt.Errorf("device not registered — run 'shireguard register-device' first")
 			}
 
-			// Write pidfile so 'shireguard down' can signal this process
+			if !foreground {
+				return startDaemon()
+			}
+
+			// Foreground mode: write pidfile and run the tunnel directly.
+			// Used by service managers (launchd, systemd) and by startDaemon().
 			if pidPath, err := config.PidFile(); err == nil {
 				_ = os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0600)
 				defer os.Remove(pidPath)
@@ -257,12 +263,10 @@ func upCmd() *cobra.Command {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Handle signals
 			sig := make(chan os.Signal, 1)
 			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 			go func() {
 				<-sig
-				fmt.Println("\nShutting down...")
 				cancel()
 			}()
 
@@ -270,6 +274,54 @@ func upCmd() *cobra.Command {
 			return d.Run(ctx)
 		},
 	}
+	// --foreground is for service managers; hidden from normal help output.
+	cmd.Flags().BoolVar(&foreground, "foreground", false, "Run in the foreground (for launchd/systemd)")
+	_ = cmd.Flags().MarkHidden("foreground")
+	return cmd
+}
+
+// startDaemon re-execs the current binary with --foreground, detaches it from
+// the terminal, and returns immediately so the shell is free.
+func startDaemon() error {
+	// Refuse to start a second instance.
+	if pidPath, err := config.PidFile(); err == nil {
+		if data, err := os.ReadFile(pidPath); err == nil {
+			if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+				if proc, err := os.FindProcess(pid); err == nil {
+					if proc.Signal(syscall.Signal(0)) == nil {
+						return fmt.Errorf("shireguard is already running (pid %d) — run 'shireguard down' first", pid)
+					}
+				}
+			}
+		}
+	}
+
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("resolving executable path: %w", err)
+	}
+
+	logPath := "/var/log/shireguard.log"
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("opening log file %s: %w", logPath, err)
+	}
+	defer logFile.Close()
+
+	child := exec.Command(exePath, "up", "--foreground")
+	child.Stdout = logFile
+	child.Stderr = logFile
+	child.Stdin = nil
+	child.SysProcAttr = &syscall.SysProcAttr{Setsid: true} // detach from terminal
+
+	if err := child.Start(); err != nil {
+		return fmt.Errorf("starting daemon: %w", err)
+	}
+
+	fmt.Printf("Shireguard started (pid %d)\n", child.Process.Pid)
+	fmt.Printf("Logs:  sudo tail -f %s\n", logPath)
+	fmt.Println("Stop:  sudo shireguard down")
+	return nil
 }
 
 func downCmd() *cobra.Command {

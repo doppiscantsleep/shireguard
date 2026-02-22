@@ -6,8 +6,9 @@
     <string>com.shireguard.daemon</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/shireguard</string>
+        <string>/opt/homebrew/bin/shireguard</string>
         <string>up</string>
+        <string>--foreground</string>
     </array>
     <key>RunAtLoad</key>
     <true/>

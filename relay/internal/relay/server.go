@@ -140,7 +140,15 @@ func (s *RelayServer) ListenAndServe(addr string) error {
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("POST /register", s.handleRegister)
 	mux.Handle("GET /metrics", promhttp.Handler())
-	return http.ListenAndServe(addr, mux)
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	return srv.ListenAndServe()
 }
 
 func (s *RelayServer) handleHealth(w http.ResponseWriter, r *http.Request) {

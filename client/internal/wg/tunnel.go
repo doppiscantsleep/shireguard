@@ -144,6 +144,29 @@ func (t *Tunnel) UpdatePeers(peers []PeerConfig) error {
 		return fmt.Errorf("tunnel not up")
 	}
 
+	// Build desired peer set (keyed by base64 public key).
+	desired := make(map[string]struct{}, len(peers))
+	for _, peer := range peers {
+		desired[peer.PublicKey] = struct{}{}
+	}
+
+	// Remove peers no longer in the desired set.
+	var buf strings.Builder
+	if err := t.device.IpcGetOperation(&buf); err == nil {
+		current := parsePeerStats(buf.String())
+		var removals strings.Builder
+		for b64Key := range current {
+			if _, ok := desired[b64Key]; !ok {
+				fmt.Fprintf(&removals, "public_key=%s\nremove=true\n", hexKey(b64Key))
+			}
+		}
+		if removals.Len() > 0 {
+			_ = t.device.IpcSet(removals.String())
+		}
+	}
+
+	// Update/add desired peers, re-setting keepalive on every sync so it is
+	// never silently dropped by wireguard-go on peer reconfiguration.
 	var ipc strings.Builder
 	for _, peer := range peers {
 		fmt.Fprintf(&ipc, "public_key=%s\n", hexKey(peer.PublicKey))
@@ -154,6 +177,7 @@ func (t *Tunnel) UpdatePeers(peers []PeerConfig) error {
 		for _, ip := range peer.AllowedIPs {
 			fmt.Fprintf(&ipc, "allowed_ip=%s\n", ip)
 		}
+		fmt.Fprint(&ipc, "persistent_keepalive_interval=25\n")
 	}
 
 	return t.device.IpcSet(ipc.String())

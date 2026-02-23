@@ -21,6 +21,11 @@ relay/shireguard-relay
 .DS_Store
 Thumbs.db
 
+# Stray images at repo root (favicon lives in control-plane/src/)
+/*.jpeg
+/*.jpg
+/*.png
+
 # IDE
 .idea/
 .vscode/

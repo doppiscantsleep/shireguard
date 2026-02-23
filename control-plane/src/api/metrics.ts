@@ -115,14 +115,16 @@ metrics.get('/summary/:network_id', async (c) => {
   const userId = c.get('userId');
   const networkId = c.req.param('network_id');
 
-  // Verify network ownership
-  const network = await c.env.DB.prepare(
-    'SELECT id FROM networks WHERE id = ? AND user_id = ?'
-  )
-    .bind(networkId, userId)
+  // Verify the user owns or is a member of the network
+  const access = await c.env.DB.prepare(`
+    SELECT 1 FROM networks WHERE id = ? AND user_id = ?
+    UNION SELECT 1 FROM network_members WHERE network_id = ? AND user_id = ?
+    LIMIT 1
+  `)
+    .bind(networkId, userId, networkId, userId)
     .first();
 
-  if (!network) {
+  if (!access) {
     return c.json({ error: 'Network not found' }, 404);
   }
 

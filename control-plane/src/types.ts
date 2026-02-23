@@ -72,6 +72,42 @@ export interface MetricEntry {
   timestamp: string;
 }
 
+export interface ACLRule {
+  id: string;
+  description: string;
+  action: 'allow' | 'block';
+  protocol: 'tcp' | 'udp' | 'icmp' | 'any';
+  src: string;
+  dst: string;
+  ports: string;
+}
+
+export interface GatekeepPolicy {
+  default_action: 'allow' | 'block';
+  rules: ACLRule[];
+}
+
+export interface NetworkMember {
+  id: string;
+  network_id: string;
+  user_id: string;
+  email: string;
+  role: 'owner' | 'admin' | 'member';
+  invited_by: string | null;
+  created_at: string;
+}
+
+export interface NetworkInvite {
+  id: string;
+  network_id: string;
+  role: 'admin' | 'member';
+  token: string;
+  max_uses: number;
+  use_count: number;
+  expires_at: string;
+  created_at: string;
+}
+
 export interface JWTPayload {
   sub: string;
   email: string;

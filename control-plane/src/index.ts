@@ -30,15 +30,27 @@ app.use('*', cors({
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
-// Dashboard (serve HTML)
+// HTML pages
 import dashboardHtml from './dashboard.html';
+import landingHtml from './landing.html';
+import docsHtml from './docs.html';
 import installScript from '../../install.sh';
+import hobDoor from './hob_door.jpeg';
 
 app.get('/', (c) => {
-  return c.html(dashboardHtml);
+  return c.html(landingHtml);
 });
 app.get('/dashboard', (c) => {
   return c.html(dashboardHtml);
+});
+app.get('/docs', (c) => {
+  return c.html(docsHtml);
+});
+app.get('/favicon.jpeg', (c) => {
+  return c.body(hobDoor, 200, {
+    'Content-Type': 'image/jpeg',
+    'Cache-Control': 'public, max-age=86400',
+  });
 });
 
 // Linux installer script — curl -sSL https://shireguard.com/install.sh | bash
@@ -55,6 +67,74 @@ app.route('/v1/devices', devices);
 app.route('/v1/networks', networks);
 app.route('/v1/metrics', metrics);
 app.route('/v1/relays', relays);
+
+// POST /v1/invites/:token/accept — accept a network invite
+app.post('/v1/invites/:token/accept', authMiddleware, async (c) => {
+  const token = c.req.param('token');
+  const userId = c.get('userId');
+
+  const invite = await c.env.DB.prepare(
+    'SELECT * FROM network_invites WHERE token = ?'
+  )
+    .bind(token)
+    .first<{
+      id: string; network_id: string; created_by: string;
+      role: 'admin' | 'member'; max_uses: number; use_count: number; expires_at: string;
+    }>();
+
+  if (!invite) return c.json({ error: 'Invite not found' }, 404);
+
+  // Check validity
+  const now = new Date();
+  const expiresAt = new Date(invite.expires_at + (invite.expires_at.includes('T') ? 'Z' : 'Z'));
+  if (now > expiresAt || invite.use_count >= invite.max_uses) {
+    return c.json({ error: 'Invite has expired or reached its use limit' }, 410);
+  }
+
+  // Fetch network name
+  const network = await c.env.DB.prepare('SELECT name FROM networks WHERE id = ?')
+    .bind(invite.network_id)
+    .first<{ name: string }>();
+
+  if (!network) return c.json({ error: 'Network not found' }, 404);
+
+  // Idempotent: already a member?
+  const existing = await c.env.DB.prepare(
+    'SELECT role FROM network_members WHERE network_id = ? AND user_id = ?'
+  )
+    .bind(invite.network_id, userId)
+    .first<{ role: string }>();
+
+  if (existing) {
+    return c.json({ network_id: invite.network_id, network_name: network.name, role: existing.role });
+  }
+
+  // Check if caller is the owner
+  const isOwner = await c.env.DB.prepare(
+    'SELECT 1 FROM networks WHERE id = ? AND user_id = ?'
+  )
+    .bind(invite.network_id, userId)
+    .first();
+
+  if (isOwner) {
+    return c.json({ network_id: invite.network_id, network_name: network.name, role: 'owner' });
+  }
+
+  const memberId = crypto.randomUUID();
+  await c.env.DB.prepare(
+    'INSERT INTO network_members (id, network_id, user_id, role, invited_by) VALUES (?, ?, ?, ?, ?)'
+  )
+    .bind(memberId, invite.network_id, userId, invite.role, invite.created_by)
+    .run();
+
+  await c.env.DB.prepare(
+    'UPDATE network_invites SET use_count = use_count + 1 WHERE id = ?'
+  )
+    .bind(invite.id)
+    .run();
+
+  return c.json({ network_id: invite.network_id, network_name: network.name, role: invite.role });
+});
 
 // WebSocket signaling upgrade
 app.get('/v1/signal/:network_id', authMiddleware, async (c) => {

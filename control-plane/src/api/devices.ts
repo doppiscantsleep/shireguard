@@ -23,11 +23,16 @@ devices.post('/', async (c) => {
     return c.json({ error: 'Platform must be macos, linux, or raspberrypi' }, 400);
   }
 
-  // Verify the network belongs to the user
-  const network = await c.env.DB.prepare(
-    'SELECT id, cidr FROM networks WHERE id = ? AND user_id = ?'
-  )
-    .bind(body.network_id, userId)
+  // Verify the user owns or is a member of the network
+  const network = await c.env.DB.prepare(`
+    SELECT id, cidr FROM networks WHERE id = ? AND user_id = ?
+    UNION
+    SELECT n.id, n.cidr FROM networks n
+    JOIN network_members nm ON nm.network_id = n.id AND nm.user_id = ?
+    WHERE n.id = ?
+    LIMIT 1
+  `)
+    .bind(body.network_id, userId, userId, body.network_id)
     .first<{ id: string; cidr: string }>();
 
   if (!network) {
@@ -196,7 +201,7 @@ async function getNextIp(db: D1Database, networkId: string, cidr: string): Promi
   const parts = base.split('.').map(Number);
   const baseNum = (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3];
   const hostBits = 32 - prefix;
-  const maxHosts = (1 << hostBits) - 2; // Exclude network and broadcast
+  const maxHosts = (2 ** hostBits) - 2; // Exclude network and broadcast
 
   // Get existing assigned IPs
   const existing = await db

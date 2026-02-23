@@ -433,7 +433,7 @@ auth.post('/apple/callback', async (c) => {
 localStorage.setItem('sg_access_token', ${JSON.stringify(accessToken)});
 localStorage.setItem('sg_refresh_token', ${JSON.stringify(refreshToken)});
 localStorage.setItem('sg_user_email', ${JSON.stringify(user.email)});
-window.location.replace('/');
+window.location.replace('/dashboard');
 </script>
 </body>
 </html>`);
@@ -569,7 +569,7 @@ auth.get('/google/callback', async (c) => {
 localStorage.setItem('sg_access_token', ${JSON.stringify(accessToken)});
 localStorage.setItem('sg_refresh_token', ${JSON.stringify(refreshToken)});
 localStorage.setItem('sg_user_email', ${JSON.stringify(user.email)});
-window.location.replace('/');
+window.location.replace('/dashboard');
 </script>
 </body>
 </html>`);
@@ -728,7 +728,7 @@ auth.get('/github/callback', async (c) => {
 localStorage.setItem('sg_access_token', ${JSON.stringify(accessToken)});
 localStorage.setItem('sg_refresh_token', ${JSON.stringify(refreshToken)});
 localStorage.setItem('sg_user_email', ${JSON.stringify(user.email)});
-window.location.replace('/');
+window.location.replace('/dashboard');
 </script>
 </body>
 </html>`);

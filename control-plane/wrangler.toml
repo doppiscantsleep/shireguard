@@ -10,6 +10,11 @@ fallthrough = true
 [[rules]]
 type = "Text"
 globs = ["**/*.sh"]
+fallthrough = true
+
+[[rules]]
+type = "Data"
+globs = ["**/*.jpeg", "**/*.jpg", "**/*.png", "**/*.ico"]
 fallthrough = false
 
 [[d1_databases]]

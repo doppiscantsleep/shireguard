@@ -6,7 +6,9 @@ import { devices } from './api/devices';
 import { networks } from './api/networks';
 import { metrics } from './api/metrics';
 import { relays } from './api/relays';
+import { activity } from './api/activity';
 import { authMiddleware } from './auth/middleware';
+import { logAudit } from './lib/audit';
 
 export { SignalingRoom } from './signaling/room';
 
@@ -67,6 +69,7 @@ app.route('/v1/devices', devices);
 app.route('/v1/networks', networks);
 app.route('/v1/metrics', metrics);
 app.route('/v1/relays', relays);
+app.route('/v1/activity', activity);
 
 // POST /v1/invites/:token/accept — accept a network invite
 app.post('/v1/invites/:token/accept', authMiddleware, async (c) => {
@@ -132,6 +135,16 @@ app.post('/v1/invites/:token/accept', authMiddleware, async (c) => {
   )
     .bind(invite.id)
     .run();
+
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId,
+    action: 'member.join',
+    resourceType: 'member',
+    resourceId: userId,
+    detail: `Joined network "${network.name}" as ${invite.role}`,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+    networkId: invite.network_id,
+  }));
 
   return c.json({ network_id: invite.network_id, network_name: network.name, role: invite.role });
 });

@@ -353,12 +353,38 @@ code{
   position:fixed;inset:0;z-index:40;display:none;
 }
 .mobile-toc-backdrop.open{display:block}
+
+/* ── Docs search ── */
+.docs-search-wrap { position:relative; flex:0 1 240px; margin:0 .75rem; }
+.docs-search-input {
+  width:100%; background:var(--bg-elevated); border:1px solid var(--border);
+  border-radius:var(--radius); color:var(--text-primary);
+  font-family:var(--font-sans); font-size:.82rem;
+  padding:.3rem 2rem .3rem .65rem; outline:none; transition:border-color .15s;
+}
+.docs-search-input:focus { border-color:var(--border-focus); }
+.docs-search-input::placeholder { color:var(--text-muted); }
+.docs-search-kbd {
+  position:absolute; right:.5rem; top:50%; transform:translateY(-50%);
+  font-size:.65rem; color:var(--text-muted); font-family:var(--font-mono); pointer-events:none;
+}
+mark.search-hl {
+  background:var(--amber-dim); color:var(--amber);
+  border-radius:2px; padding:0 1px;
+}
+.doc-section.search-hidden { display:none; }
 </style>
 </head>
 <body>
 
 <nav class="top-nav">
   <a href="/" class="nav-logo">Shire<span>guard</span></a>
+  <div class="docs-search-wrap">
+    <input type="search" id="docs-search" class="docs-search-input"
+      placeholder="Search docs…" autocomplete="off" spellcheck="false"
+      oninput="docsSearch(this.value)">
+    <kbd class="docs-search-kbd">/</kbd>
+  </div>
   <div class="nav-right">
     <button class="btn-theme" onclick="toggleTheme()"><span class="theme-name">Shire Dark</span></button>
     <a href="/dashboard" class="btn-signin">Sign In</a>
@@ -703,6 +729,77 @@ sections.forEach(s => observer.observe(s));
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && panel.classList.contains('open')) closeToc();
   });
+})();
+
+// ── Docs Search ──
+(function () {
+  const sectionCache = new Map();
+  document.querySelectorAll('.doc-section[id]').forEach(sec => {
+    sectionCache.set(sec, sec.innerHTML);
+  });
+
+  window.docsSearch = function(rawQuery) {
+    const query = rawQuery.trim();
+    sectionCache.forEach((html, sec) => {
+      sec.innerHTML = html;
+      sec.classList.remove('search-hidden');
+    });
+    if (!query) return;
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    sectionCache.forEach((_, sec) => {
+      const text = sec.textContent.toLowerCase();
+      if (!terms.every(t => text.includes(t))) {
+        sec.classList.add('search-hidden');
+        return;
+      }
+      highlightTerms(sec, terms);
+    });
+  };
+
+  function highlightTerms(container, terms) {
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const tag = node.parentElement?.tagName?.toUpperCase();
+        return (tag === 'SCRIPT' || tag === 'STYLE') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const nodes = [];
+    let n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    const escaped = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const regex = new RegExp(`(${escaped.join('|')})`, 'gi');
+    nodes.forEach(node => {
+      const val = node.nodeValue;
+      if (!val || !regex.test(val)) return;
+      regex.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let last = 0, m;
+      while ((m = regex.exec(val)) !== null) {
+        if (m.index > last) frag.appendChild(document.createTextNode(val.slice(last, m.index)));
+        const mark = document.createElement('mark');
+        mark.className = 'search-hl';
+        mark.textContent = m[0];
+        frag.appendChild(mark);
+        last = regex.lastIndex;
+      }
+      if (last < val.length) frag.appendChild(document.createTextNode(val.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+    });
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') {
+      e.preventDefault();
+      document.getElementById('docs-search')?.focus();
+    }
+  });
+
+  const input = document.getElementById('docs-search');
+  if (input) {
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.target.value = ''; docsSearch(''); e.target.blur(); }
+    });
+  }
 })();
 </script>
 </body>

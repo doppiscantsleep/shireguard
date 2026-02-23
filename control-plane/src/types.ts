@@ -108,6 +108,18 @@ export interface NetworkInvite {
   created_at: string;
 }
 
+export interface AuditEntry {
+  id: number;
+  user_id: string;
+  email: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  detail: string | null;
+  network_id: string | null;
+  created_at: string;
+}
+
 export interface JWTPayload {
   sub: string;
   email: string;

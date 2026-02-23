@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
 import { authMiddleware } from '../auth/middleware';
+import { logAudit } from '../lib/audit';
 
 const networks = new Hono<{ Bindings: Env }>();
 networks.use('*', authMiddleware);
@@ -45,6 +46,16 @@ networks.post('/', async (c) => {
   await c.env.DB.prepare('INSERT INTO networks (id, user_id, name, cidr) VALUES (?, ?, ?, ?)')
     .bind(networkId, userId, body.name, cidr)
     .run();
+
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId,
+    action: 'network.create',
+    resourceType: 'network',
+    resourceId: networkId,
+    detail: `Created network "${body.name}" (${cidr})`,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+    networkId,
+  }));
 
   return c.json({ id: networkId, name: body.name, cidr }, 201);
 });
@@ -138,6 +149,14 @@ networks.delete('/:id', async (c) => {
     .run();
 
   if (!result.meta.changes) return c.json({ error: 'Network not found' }, 404);
+
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId,
+    action: 'network.delete',
+    resourceType: 'network',
+    resourceId: networkId,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+  }));
 
   return c.json({ deleted: true });
 });
@@ -249,6 +268,16 @@ networks.post('/:id/invites', async (c) => {
     .bind(inviteId, networkId, userId, inviteRole, token, maxUses, expiresAt)
     .run();
 
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId,
+    action: 'invite.create',
+    resourceType: 'invite',
+    resourceId: inviteId,
+    detail: `Created ${inviteRole} invite (max ${maxUses} use${maxUses !== 1 ? 's' : ''}, expires in ${expiresHours}h)`,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+    networkId,
+  }));
+
   return c.json({
     token,
     invite_url: `https://shireguard.com/?invite=${token}`,
@@ -297,6 +326,15 @@ networks.delete('/:id/invites/:inviteId', async (c) => {
 
   if (!result.meta.changes) return c.json({ error: 'Invite not found' }, 404);
 
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId,
+    action: 'invite.revoke',
+    resourceType: 'invite',
+    resourceId: inviteId,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+    networkId,
+  }));
+
   return c.json({ deleted: true });
 });
 
@@ -338,6 +376,15 @@ networks.delete('/:id/members/:memberId', async (c) => {
 
   if (!result.meta.changes) return c.json({ error: 'Member not found' }, 404);
 
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId: callerId,
+    action: 'member.remove',
+    resourceType: 'member',
+    resourceId: targetUserId,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+    networkId,
+  }));
+
   return c.json({ deleted: true });
 });
 
@@ -363,6 +410,16 @@ networks.patch('/:id/members/:memberId', async (c) => {
     .run();
 
   if (!result.meta.changes) return c.json({ error: 'Member not found' }, 404);
+
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId: callerId,
+    action: 'member.role_change',
+    resourceType: 'member',
+    resourceId: targetUserId,
+    detail: `Role changed to ${body.role}`,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+    networkId,
+  }));
 
   return c.json({ updated: true });
 });
@@ -426,6 +483,16 @@ networks.put('/:id/gatekeep', async (c) => {
   `)
     .bind(networkId, policyJson, userId)
     .run();
+
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId,
+    action: 'policy.update',
+    resourceType: 'policy',
+    resourceId: networkId,
+    detail: `Updated gatekeep policy (default: ${body.default_action}, ${body.rules.length} rule${body.rules.length !== 1 ? 's' : ''})`,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+    networkId,
+  }));
 
   return c.json({ saved: true });
 });

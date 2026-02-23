@@ -3,6 +3,7 @@ import type { Env } from '../types';
 import { createAccessToken, createRefreshToken, refreshTokenTTL, verifyAccessToken } from './jwt';
 import { authMiddleware } from './middleware';
 import { checkRateLimit } from './ratelimit';
+import { logAudit } from '../lib/audit';
 
 const auth = new Hono<{ Bindings: Env }>();
 
@@ -353,6 +354,7 @@ auth.post('/apple/callback', async (c) => {
   }
 
   // Look up user: first by apple_sub, then by email
+  let isNewUser = false;
   let user = await c.env.DB.prepare(
     'SELECT id, email, apple_sub FROM users WHERE apple_sub = ?'
   ).bind(appleSub).first<{ id: string; email: string; apple_sub: string | null }>();
@@ -385,6 +387,7 @@ auth.post('/apple/callback', async (c) => {
       .run();
 
     user = { id: userId, email: userEmail, apple_sub: appleSub };
+    isNewUser = true;
     c.executionCtx.waitUntil(fetch(c.env.DISCORD_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -395,6 +398,15 @@ auth.post('/apple/callback', async (c) => {
   const accessToken = await createAccessToken(user.id, user.email, c.env.JWT_SECRET);
   const refreshToken = await createRefreshToken();
   await c.env.KV.put(`refresh:${refreshToken}`, user.id, { expirationTtl: refreshTokenTTL() });
+
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId: user.id,
+    action: isNewUser ? 'user.signup' : 'login',
+    resourceType: 'user',
+    resourceId: user.id,
+    detail: `Signed in via Apple`,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+  }));
 
   // Poll-based CLI login: store tokens in KV for the CLI to pick up
   if (isPollSession) {
@@ -503,6 +515,7 @@ auth.get('/google/callback', async (c) => {
   const { sub: googleSub, email } = await verifyGoogleIdToken(tokenData.id_token, c.env);
 
   // Look up user: first by google_sub, then by email (links existing accounts)
+  let isNewUser = false;
   let user = await c.env.DB.prepare(
     'SELECT id, email, google_sub FROM users WHERE google_sub = ?'
   ).bind(googleSub).first<{ id: string; email: string; google_sub: string | null }>();
@@ -533,6 +546,7 @@ auth.get('/google/callback', async (c) => {
       .run();
 
     user = { id: userId, email: userEmail, google_sub: googleSub };
+    isNewUser = true;
     c.executionCtx.waitUntil(fetch(c.env.DISCORD_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -543,6 +557,15 @@ auth.get('/google/callback', async (c) => {
   const accessToken = await createAccessToken(user.id, user.email, c.env.JWT_SECRET);
   const refreshToken = await createRefreshToken();
   await c.env.KV.put(`refresh:${refreshToken}`, user.id, { expirationTtl: refreshTokenTTL() });
+
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId: user.id,
+    action: isNewUser ? 'user.signup' : 'login',
+    resourceType: 'user',
+    resourceId: user.id,
+    detail: `Signed in via Google`,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+  }));
 
   if (isPollSession) {
     const sessionId = stateData.slice('poll:'.length);
@@ -657,6 +680,7 @@ auth.get('/github/callback', async (c) => {
   const githubId = String(ghUser.id);
 
   // Look up user: first by github_id, then by email (links existing accounts)
+  let isNewUser = false;
   let user = await c.env.DB.prepare(
     'SELECT id, email, github_id FROM users WHERE github_id = ?'
   ).bind(githubId).first<{ id: string; email: string; github_id: string | null }>();
@@ -692,6 +716,7 @@ auth.get('/github/callback', async (c) => {
       .run();
 
     user = { id: userId, email: userEmail, github_id: githubId };
+    isNewUser = true;
     c.executionCtx.waitUntil(fetch(c.env.DISCORD_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -702,6 +727,15 @@ auth.get('/github/callback', async (c) => {
   const accessToken = await createAccessToken(user.id, user.email, c.env.JWT_SECRET);
   const refreshToken = await createRefreshToken();
   await c.env.KV.put(`refresh:${refreshToken}`, user.id, { expirationTtl: refreshTokenTTL() });
+
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId: user.id,
+    action: isNewUser ? 'user.signup' : 'login',
+    resourceType: 'user',
+    resourceId: user.id,
+    detail: `Signed in via GitHub`,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+  }));
 
   if (isPollSession) {
     const sessionId = stateData.slice('poll:'.length);

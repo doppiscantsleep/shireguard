@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
 import { authMiddleware } from '../auth/middleware';
+import { logAudit } from '../lib/audit';
 
 const devices = new Hono<{ Bindings: Env }>();
 devices.use('*', authMiddleware);
@@ -59,6 +60,16 @@ devices.post('/', async (c) => {
     }
     throw e;
   }
+
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId,
+    action: 'device.register',
+    resourceType: 'device',
+    resourceId: deviceId,
+    detail: `Registered "${body.name}" (${body.platform})`,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+    networkId: body.network_id,
+  }));
 
   return c.json({
     id: deviceId,
@@ -164,6 +175,14 @@ devices.delete('/:id', async (c) => {
   if (!result.meta.changes) {
     return c.json({ error: 'Device not found' }, 404);
   }
+
+  c.executionCtx.waitUntil(logAudit(c.env.DB, {
+    userId,
+    action: 'device.remove',
+    resourceType: 'device',
+    resourceId: deviceId,
+    ip: c.req.header('CF-Connecting-IP') ?? null,
+  }));
 
   return c.json({ deleted: true });
 });

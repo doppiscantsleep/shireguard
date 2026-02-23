@@ -857,6 +857,17 @@ body{
 .role-badge.admin{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(91,141,217,.25)}
 .role-badge.member{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(125,193,66,.2)}
 
+/* ── Activity badges ── */
+.activity-badge{
+  display:inline-block;padding:.1rem .45rem;
+  font-size:.65rem;font-family:var(--font-mono);font-weight:700;
+  text-transform:uppercase;letter-spacing:.04em;border-radius:var(--radius);
+  background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border);
+}
+.activity-badge.blue{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(91,141,217,.25)}
+.activity-badge.amber{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(212,165,32,.25)}
+.activity-badge.green{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(125,193,66,.2)}
+
 /* ── Members section inside network panel ── */
 .members-section{border-top:1px solid var(--border);padding:.75rem 1rem}
 .members-label{
@@ -1229,6 +1240,10 @@ body{
       <button class="nav-item" data-page="apikeys">
         <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M10 6a3 3 0 1 0-1.8 2.75L11 11.5h2V10h1.5V8H11l-1-1" stroke="currentColor" stroke-width="1.2"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/></svg>
         API Keys
+      </button>
+      <button class="nav-item" data-page="activity">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/><path d="M8 4v4.5l3 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Activity
       </button>
     </div>
     <div class="sidebar-section">
@@ -1668,6 +1683,34 @@ body{
           <div class="empty-state-icon">⚿</div>
           <div class="empty-state-text">No API keys created</div>
         </div>
+      </div>
+    </div>
+
+    <!-- ACTIVITY PAGE -->
+    <div class="page" id="page-activity" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Activity</div>
+          <div class="page-desc">Audit log of account and network events</div>
+        </div>
+        <select class="form-select" id="activity-network-select" style="width:200px" onchange="loadActivity()"></select>
+      </div>
+      <div class="panel">
+        <table class="data-table">
+          <thead><tr>
+            <th>When</th><th>Who</th><th>Action</th><th>Detail</th>
+          </tr></thead>
+          <tbody id="activity-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="activity-empty" style="display:none">
+          <div class="empty-state-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <div class="empty-state-text">No activity recorded yet</div>
+        </div>
+      </div>
+      <div id="activity-load-more" style="display:none;text-align:center;padding:1rem 0">
+        <button class="btn btn-secondary btn-sm" onclick="loadMoreActivity()">Load more</button>
       </div>
     </div>
 
@@ -2778,7 +2821,7 @@ function logout() {
 }
 
 // ── Navigation ──
-const validPages = ['setup','devices','networks','users','gatekeep','metrics','account','apikeys','tech','about'];
+const validPages = ['setup','devices','networks','users','gatekeep','metrics','account','apikeys','activity','tech','about'];
 
 document.querySelectorAll('.nav-item[data-page]').forEach(item => {
   item.addEventListener('click', () => {
@@ -2805,6 +2848,7 @@ function navigateTo(page) {
   if (page === 'gatekeep') loadGatekeep();
   if (page === 'metrics') loadMetricsSummary();
   if (page === 'apikeys') loadApiKeys();
+  if (page === 'activity') loadActivity();
   if (page === 'account') loadAccount();
   // 'tech' and 'about' are static — no fetch needed
 }
@@ -2915,7 +2959,7 @@ async function loadNetworksList() {
 }
 
 function populateNetworkSelects() {
-  const selects = [document.getElementById('device-network-select'), document.getElementById('metrics-network-select'), document.getElementById('gatekeep-network-select'), document.getElementById('users-network-select')];
+  const selects = [document.getElementById('device-network-select'), document.getElementById('metrics-network-select'), document.getElementById('gatekeep-network-select'), document.getElementById('users-network-select'), document.getElementById('activity-network-select')];
   selects.forEach(sel => {
     if (!sel) return;
     sel.innerHTML = '';
@@ -2926,6 +2970,15 @@ function populateNetworkSelects() {
       sel.appendChild(opt);
     });
   });
+  // Activity select gets an "All" option prepended
+  const actSel = document.getElementById('activity-network-select');
+  if (actSel) {
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'All (my events)';
+    actSel.prepend(allOpt);
+    actSel.value = '';
+  }
 }
 
 // ── Devices ──
@@ -3648,6 +3701,73 @@ async function deleteApiKey(id) {
       loadApiKeys();
     } catch (err) { toast(err.message, 'error'); }
   });
+}
+
+// ── Activity ──
+let _activityCursor = null;
+
+async function loadActivity(append = false) {
+  const networkId = document.getElementById('activity-network-select')?.value || '';
+  const tbody = document.getElementById('activity-tbody');
+  const empty = document.getElementById('activity-empty');
+  const loadMore = document.getElementById('activity-load-more');
+  if (!tbody) return;
+
+  if (!append) {
+    _activityCursor = null;
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:2rem"><span class="spinner"></span></td></tr>';
+    empty.style.display = 'none';
+    loadMore.style.display = 'none';
+  }
+
+  let url = '/v1/activity?limit=50';
+  if (networkId) url += `&network_id=${encodeURIComponent(networkId)}`;
+  if (_activityCursor) url += `&before=${encodeURIComponent(_activityCursor)}`;
+
+  const data = await api('GET', url);
+  if (!data) return;
+  const events = data.events || [];
+
+  if (!append) tbody.innerHTML = '';
+
+  if (events.length === 0 && !append) {
+    empty.style.display = '';
+    return;
+  }
+
+  events.forEach(ev => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="white-space:nowrap;color:var(--text-secondary);font-size:.75rem" title="${esc(ev.created_at)}">${timeAgo(ev.created_at)}</td>
+      <td style="font-size:.8rem">${esc(ev.email || ev.user_id)}</td>
+      <td><span class="activity-badge ${activityBadgeClass(ev.action)}">${esc(humanizeAction(ev.action))}</span></td>
+      <td style="font-size:.8rem;color:var(--text-secondary)">${esc(ev.detail || '')}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  if (events.length > 0) _activityCursor = events[events.length - 1].created_at;
+  loadMore.style.display = data.has_more ? '' : 'none';
+}
+
+async function loadMoreActivity() { await loadActivity(true); }
+
+function humanizeAction(action) {
+  return {
+    'login': 'Login', 'user.signup': 'Sign Up',
+    'device.register': 'Device Registered', 'device.remove': 'Device Removed',
+    'network.create': 'Network Created', 'network.delete': 'Network Deleted',
+    'member.join': 'Joined Network', 'member.remove': 'Member Removed',
+    'member.role_change': 'Role Changed', 'invite.create': 'Invite Created',
+    'invite.revoke': 'Invite Revoked', 'policy.update': 'Policy Updated',
+  }[action] || action;
+}
+
+function activityBadgeClass(action) {
+  if (action.startsWith('device.')) return 'blue';
+  if (action.startsWith('network.') || action === 'policy.update') return 'amber';
+  if (action.startsWith('member.') || action === 'invite.create' || action === 'invite.revoke') return 'green';
+  return '';
 }
 
 // ── Modals ──

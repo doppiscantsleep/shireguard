@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
 	"runtime"
 	"strconv"
 	"strings"
@@ -52,7 +53,7 @@ func main() {
 	root.PersistentFlags().StringVar(&cfg.APIURL, "api-url", cfg.APIURL, "Control plane API URL")
 	root.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose (debug) logging")
 
-	root.AddCommand(loginCmd(), registerDeviceCmd(), upCmd(), downCmd(), statusCmd(), devicesCmd(), logoutCmd(), installCmd())
+	root.AddCommand(loginCmd(), registerDeviceCmd(), upCmd(), downCmd(), statusCmd(), devicesCmd(), logoutCmd(), installCmd(), installServiceCmd())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -641,7 +642,21 @@ func installCmd() *cobra.Command {
 				return fmt.Errorf("resolving executable path: %w", err)
 			}
 
-			rule := fmt.Sprintf("ALL ALL=(ALL) SETENV: NOPASSWD: %s\n", exePath)
+			// When run via `sudo shireguard install`, SUDO_USER is the real
+			// user. Fall back to os/user.Current() when run directly as root.
+			username := os.Getenv("SUDO_USER")
+			if username == "" {
+				u, err := user.Current()
+				if err != nil {
+					return fmt.Errorf("getting current user: %w", err)
+				}
+				username = u.Username
+			}
+			if username == "root" {
+				fmt.Fprintln(os.Stderr, "warning: could not determine the real user — run as: sudo shireguard install")
+			}
+
+			rule := fmt.Sprintf("%s ALL=(ALL) SETENV: NOPASSWD: %s\n", username, exePath)
 			dest := "/etc/sudoers.d/shireguard"
 
 			if err := os.WriteFile(dest, []byte(rule), 0440); err != nil {
@@ -651,6 +666,81 @@ func installCmd() *cobra.Command {
 			fmt.Printf("Installed sudoers rule: %s\n", dest)
 			fmt.Printf("Rule: %s", rule)
 			fmt.Println("The menu bar can now start and stop the tunnel without a password prompt.")
+			return nil
+		},
+	}
+}
+
+func installServiceCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "install-service",
+		Short: "Install and enable the shireguard systemd service (Linux only)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if runtime.GOOS != "linux" {
+				return fmt.Errorf("install-service is only supported on Linux")
+			}
+
+			exePath, err := os.Executable()
+			if err != nil {
+				return fmt.Errorf("resolving executable path: %w", err)
+			}
+
+			// When run via `sudo shireguard install-service`, SUDO_USER is
+			// the real user. Fall back to user.Current() otherwise.
+			username := os.Getenv("SUDO_USER")
+			if username == "" {
+				u, err := user.Current()
+				if err != nil {
+					return fmt.Errorf("getting current user: %w", err)
+				}
+				username = u.Username
+			}
+
+			// Look up the user's home directory for the service Environment=.
+			u, err := user.Lookup(username)
+			if err != nil {
+				return fmt.Errorf("looking up user %q: %w", username, err)
+			}
+
+			serviceContent := fmt.Sprintf(`[Unit]
+Description=Shireguard WireGuard P2P tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%s
+Environment=HOME=%s
+ExecStart=%s up --foreground
+Restart=on-failure
+RestartSec=5
+KillMode=process
+
+# Capabilities needed for TUN device creation (set via setcap during install)
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+
+[Install]
+WantedBy=multi-user.target
+`, username, u.HomeDir, exePath)
+
+			dest := "/etc/systemd/system/shireguard.service"
+			if err := os.WriteFile(dest, []byte(serviceContent), 0644); err != nil {
+				return fmt.Errorf("writing %s (try: sudo shireguard install-service): %w", dest, err)
+			}
+
+			if out, err := exec.Command("systemctl", "daemon-reload").CombinedOutput(); err != nil {
+				return fmt.Errorf("systemctl daemon-reload: %s: %w", strings.TrimSpace(string(out)), err)
+			}
+			if out, err := exec.Command("systemctl", "enable", "shireguard").CombinedOutput(); err != nil {
+				return fmt.Errorf("systemctl enable shireguard: %s: %w", strings.TrimSpace(string(out)), err)
+			}
+
+			fmt.Printf("Service installed for user: %s\n", username)
+			fmt.Printf("Service file: %s\n\n", dest)
+			fmt.Println("Start now:      sudo systemctl start shireguard")
+			fmt.Println("Check status:   systemctl status shireguard")
+			fmt.Println("Follow logs:    journalctl -u shireguard -f")
 			return nil
 		},
 	}

@@ -25,6 +25,7 @@ type RelaySlot struct {
 	mu       sync.Mutex
 	conn     net.PacketConn // owned UDP socket; closed by cleanupLoop on eviction
 	token    [16]byte
+	deviceID string
 	homeAddr *net.UDPAddr
 	peerAddr *net.UDPAddr
 	lastSeen time.Time
@@ -41,16 +42,17 @@ type relayMetrics struct {
 
 // RelayServer manages relay slots and HTTP registration.
 type RelayServer struct {
-	mu          sync.RWMutex
-	slots       map[int]*RelaySlot // relay_port → slot
-	tokenToPort map[string]int     // hex(token) → relay_port
-	udpBase     int                // first UDP port in the relay range
-	nextPort    int
-	freePorts   []int  // evicted ports available for reuse
-	authToken   string // shared secret from --token flag
-	host        string // public hostname/IP of this server
-	metrics     *relayMetrics
-	registry    *prometheus.Registry // per-server registry (avoids global conflicts in tests)
+	mu           sync.RWMutex
+	slots        map[int]*RelaySlot // relay_port → slot
+	tokenToPort  map[string]int     // hex(token) → relay_port
+	deviceToPort map[string]int     // device_id → relay_port (prevents slot leak on reconnect)
+	udpBase      int                // first UDP port in the relay range
+	nextPort     int
+	freePorts    []int  // evicted ports available for reuse
+	authToken    string // shared secret from --token flag
+	host         string // public hostname/IP of this server
+	metrics      *relayMetrics
+	registry     *prometheus.Registry // per-server registry (avoids global conflicts in tests)
 }
 
 // NewServer creates a RelayServer with the given public host, base UDP port, and auth token.
@@ -93,14 +95,15 @@ func NewServer(host string, udpBase int, authToken string, version, commit strin
 	}).Set(1)
 
 	s := &RelayServer{
-		slots:       make(map[int]*RelaySlot),
-		tokenToPort: make(map[string]int),
-		udpBase:     udpBase,
-		nextPort:    udpBase,
-		authToken:   authToken,
-		host:        host,
-		metrics:     m,
-		registry:    reg,
+		slots:        make(map[int]*RelaySlot),
+		tokenToPort:  make(map[string]int),
+		deviceToPort: make(map[string]int),
+		udpBase:      udpBase,
+		nextPort:     udpBase,
+		authToken:    authToken,
+		host:         host,
+		metrics:      m,
+		registry:     reg,
 	}
 
 	// GaugeFuncs read live state at every Prometheus scrape.
@@ -226,7 +229,21 @@ func (s *RelayServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 	tokenHex := hex.EncodeToString(token[:])
 
 	// Allocate port — prefer recycled ports to prevent unbounded growth.
+	// If this device already has a slot, evict it first so we don't leak ports.
 	s.mu.Lock()
+	if oldPort, exists := s.deviceToPort[body.DeviceID]; exists {
+		if oldSlot, ok := s.slots[oldPort]; ok {
+			if oldSlot.conn != nil {
+				oldSlot.conn.Close() // unblocks the serve() goroutine
+			}
+			oldTokenHex := hex.EncodeToString(oldSlot.token[:])
+			delete(s.tokenToPort, oldTokenHex)
+			delete(s.slots, oldPort)
+			s.freePorts = append(s.freePorts, oldPort)
+			log.Printf("evicted previous slot for device %s on port %d (re-registration)", body.DeviceID, oldPort)
+		}
+		delete(s.deviceToPort, body.DeviceID)
+	}
 	var port int
 	if len(s.freePorts) > 0 {
 		port = s.freePorts[len(s.freePorts)-1]
@@ -235,9 +252,10 @@ func (s *RelayServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 		port = s.nextPort
 		s.nextPort++
 	}
-	slot := &RelaySlot{token: token, metrics: s.metrics}
+	slot := &RelaySlot{token: token, deviceID: body.DeviceID, metrics: s.metrics}
 	s.slots[port] = slot
 	s.tokenToPort[tokenHex] = port
+	s.deviceToPort[body.DeviceID] = port
 	s.mu.Unlock()
 
 	s.metrics.slotsRegistered.Inc()
@@ -361,6 +379,9 @@ func (s *RelayServer) evictStale(cutoff time.Time) {
 			delete(s.slots, port)
 			tokenHex := hex.EncodeToString(slot.token[:])
 			delete(s.tokenToPort, tokenHex)
+			if slot.deviceID != "" {
+				delete(s.deviceToPort, slot.deviceID)
+			}
 			s.freePorts = append(s.freePorts, port) // recycle for reuse
 			s.metrics.slotsEvicted.Inc()
 		}

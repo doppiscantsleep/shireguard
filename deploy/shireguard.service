@@ -5,19 +5,15 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# User= and Environment=HOME= are set by `sudo shireguard install-service`
 ExecStart=/usr/local/bin/shireguard up --foreground
 Restart=on-failure
 RestartSec=5
 KillMode=process
 
-# Security hardening
-NoNewPrivileges=no
-ProtectSystem=strict
-ProtectHome=read-only
-ReadWritePaths=/home
-PrivateTmp=yes
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE
-AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE
+# Capabilities needed for TUN device creation (set via setcap during install)
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
 
 [Install]
 WantedBy=multi-user.target

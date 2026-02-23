@@ -331,7 +331,6 @@ body{
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V5L9 1z"/><polyline points="9 1 9 5 13 5"/><line x1="5" y1="9" x2="11" y2="9"/><line x1="5" y1="12" x2="9" y2="12"/></svg>
         Docs
       </a>
-      <a href="/dashboard" class="btn-nav" id="nav-dashboard" style="display:none">Open Dashboard</a>
     </div>
   </nav>
 
@@ -382,12 +381,6 @@ body{
         <a class="hero-sub-link" href="https://github.com/doppiscantsleep/shireguard" target="_blank" rel="noopener">GitHub ↗</a>
       </div>
 
-      <!-- Already logged in -->
-      <div id="logged-in-section" style="display:none;margin-bottom:2rem">
-        <a href="/dashboard" class="auth-btn btn-primary" style="max-width:320px;margin:0 auto;display:flex">
-          Open Dashboard →
-        </a>
-      </div>
     </div>
   </section>
 
@@ -448,16 +441,6 @@ function copyInstall(btn) {
   }
 })();
 
-// ── Check if already logged in ──
-(function checkLoggedIn() {
-  const rt = localStorage.getItem('sg_session_rt');
-  if (rt) {
-    // User appears to be logged in — show dashboard link, hide sign-in buttons
-    document.getElementById('auth-section').style.display = 'none';
-    document.getElementById('logged-in-section').style.display = '';
-    document.getElementById('nav-dashboard').style.display = '';
-  }
-})();
 </script>
 </body>
 </html>

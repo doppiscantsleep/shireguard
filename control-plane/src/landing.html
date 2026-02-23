@@ -231,6 +231,22 @@ body{
 .btn-copy:hover{color:var(--text-primary)}
 .btn-copy.copied{color:var(--accent)}
 
+/* ── OS toggle ── */
+.os-toggle{
+  display:flex;gap:2px;margin:0 auto 0.5rem;max-width:540px;
+  justify-content:flex-start;
+}
+.os-tab{
+  font-family:var(--font-mono);font-size:.7rem;font-weight:500;
+  padding:.25rem .65rem;cursor:pointer;
+  background:none;border:1px solid transparent;border-radius:var(--radius);
+  color:var(--text-muted);transition:all .15s;letter-spacing:.01em;
+}
+.os-tab:hover{color:var(--text-secondary)}
+.os-tab.active{
+  color:var(--accent);border-color:var(--border);background:var(--bg-elevated);
+}
+
 /* ── Auth buttons ── */
 .auth-section{margin-bottom:2.5rem}
 .auth-label{
@@ -349,8 +365,12 @@ body{
       </div>
 
       <!-- Install command -->
+      <div class="os-toggle" role="tablist" aria-label="Operating system">
+        <button class="os-tab active" role="tab" aria-selected="true" data-os="mac" onclick="switchOS('mac')">macOS</button>
+        <button class="os-tab" role="tab" aria-selected="false" data-os="linux" onclick="switchOS('linux')">Linux</button>
+      </div>
       <div class="install-block">
-        <code>brew install doppiscantsleep/shireguard/shireguard</code>
+        <code id="install-cmd">brew install doppiscantsleep/shireguard/shireguard</code>
         <button class="btn-copy" onclick="copyInstall(this)" title="Copy">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>
         </button>
@@ -414,9 +434,31 @@ function updateThemeLabels() {
 }
 updateThemeLabels();
 
-// ── Copy install command ──
+// ── OS toggle + copy ──
+const installCmds = {
+  mac: 'brew install doppiscantsleep/shireguard/shireguard',
+  linux: 'curl -sSL https://shireguard.com/install.sh | bash'
+};
+
+function switchOS(os) {
+  document.querySelectorAll('.os-tab').forEach(tab => {
+    const isActive = tab.dataset.os === os;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-selected', isActive);
+  });
+  document.getElementById('install-cmd').textContent = installCmds[os];
+}
+
+// Auto-detect OS
+(function detectOS() {
+  const ua = navigator.userAgent || '';
+  const platform = navigator.platform || '';
+  const isMac = /Mac/i.test(platform) || /Mac/i.test(ua);
+  if (!isMac) switchOS('linux');
+})();
+
 function copyInstall(btn) {
-  const code = btn.previousElementSibling.textContent;
+  const code = document.getElementById('install-cmd').textContent;
   navigator.clipboard.writeText(code).then(() => {
     btn.classList.add('copied');
     btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l4 4 8-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';

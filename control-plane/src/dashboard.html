@@ -114,6 +114,54 @@
   --blue-dim:rgba(72,120,192,.13);
 }
 
+/* ── Gondor Stone — the White City, cool steel and weathered marble ── */
+[data-theme="gondor"]{
+  --bg-root:#1a1d21;
+  --bg-surface:#22272e;
+  --bg-surface-rgb:34,39,46;
+  --bg-elevated:#2c3340;
+  --bg-input:#1e2329;
+  --border:#3d4a5c;
+  --border-focus:#8aabb8;
+  --text-primary:#e8ecf0;
+  --text-secondary:#a8b8c8;
+  --text-muted:#5a6a7a;
+  --accent:#8aabb8;
+  --accent-dim:rgba(138,171,184,.13);
+  --amber:#c9922a;
+  --amber-dim:rgba(201,146,42,.13);
+  --red:#c0393a;
+  --red-dim:rgba(192,57,58,.13);
+  --green:#4a8a5a;
+  --green-dim:rgba(74,138,90,.13);
+  --blue:#3a7aaa;
+  --blue-dim:rgba(58,122,170,.13);
+}
+
+/* ── Rohan Plains — golden grass and windswept highlands ── */
+[data-theme="rohan"]{
+  --bg-root:#1c1710;
+  --bg-surface:#241e14;
+  --bg-surface-rgb:36,30,20;
+  --bg-elevated:#2e2718;
+  --bg-input:#201b11;
+  --border:#4a3d22;
+  --border-focus:#c8a84a;
+  --text-primary:#f0d88a;
+  --text-secondary:#b89840;
+  --text-muted:#6a5428;
+  --accent:#c8a84a;
+  --accent-dim:rgba(200,168,74,.13);
+  --amber:#d4922a;
+  --amber-dim:rgba(212,146,42,.13);
+  --red:#b83a2a;
+  --red-dim:rgba(184,58,42,.13);
+  --green:#5a7830;
+  --green-dim:rgba(90,120,48,.13);
+  --blue:#4a6888;
+  --blue-dim:rgba(74,104,136,.13);
+}
+
 html{font-size:14px}
 body{
   font-family:var(--font-sans);
@@ -289,6 +337,8 @@ body{
 [data-theme="light"] #fellowship-bg svg{opacity:.07;filter:brightness(.25) sepia(.6)}
 [data-theme="dwarf"] #fellowship-bg svg{opacity:.15;filter:hue-rotate(-40deg) saturate(1.3)}
 [data-theme="elven"] #fellowship-bg svg{opacity:.11;filter:hue-rotate(80deg) saturate(.85)}
+[data-theme="gondor"] #fellowship-bg svg{opacity:.08;filter:hue-rotate(160deg) saturate(.6) brightness(.9)}
+[data-theme="rohan"] #fellowship-bg svg{opacity:.11;filter:hue-rotate(-20deg) saturate(1.4) brightness(.95)}
 
 .sidebar{
   position:fixed;top:var(--header-h);left:0;bottom:0;
@@ -603,6 +653,8 @@ body{
 [data-theme="light"] .btn-apple{background:#fff;color:#1a1a1a;border-color:#ccc}
 .btn-google{background:#fff;color:#3c4043;border:1px solid #dadce0}
 [data-theme="dark"] .btn-google{background:#1c1c1c;color:#e4e4e4;border-color:#363636}
+[data-theme="gondor"] .btn-google{background:#1c1c1c;color:#e4e4e4;border-color:#363636}
+[data-theme="rohan"] .btn-google{background:#1c1c1c;color:#e4e4e4;border-color:#363636}
 .btn-google:hover{filter:brightness(1.08)}
 .btn-github{background:#22272e;color:#cdd9e5;border:1px solid #444c56}
 .btn-github:hover{filter:brightness(1.14)}
@@ -2617,8 +2669,8 @@ function showAppAndNavigate(page) {
 }
 
 // ── Theme ──
-const themeOrder = ['dark', 'dwarf', 'elven', 'light'];
-const themeLabels = { dark: 'Shire Dark', light: 'Shire Light', dwarf: 'Dwarven Mount', elven: 'Elven River' };
+const themeOrder = ['dark', 'dwarf', 'elven', 'gondor', 'rohan', 'light'];
+const themeLabels = { dark: 'Shire Dark', light: 'Shire Light', dwarf: 'Dwarven Mount', elven: 'Elven River', gondor: 'Gondor Stone', rohan: 'Rohan Plains' };
 
 function toggleTheme() {
   const html = document.documentElement;

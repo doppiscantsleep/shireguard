@@ -29,9 +29,11 @@ const (
 )
 
 type Daemon struct {
-	cfg    *config.Config
-	client *api.Client
-	tunnel *wg.Tunnel
+	cfg      *config.Config
+	client   *api.Client
+	tunnel   *wg.Tunnel
+	startedAt time.Time
+	Version   string
 
 	// Relay registration for this device
 	relayHost  string
@@ -63,6 +65,7 @@ func New(cfg *config.Config) *Daemon {
 		cfg:             cfg,
 		client:          client,
 		tunnel:          wg.NewTunnel(),
+		startedAt:       time.Now(),
 		peersByKey:      make(map[string]api.Peer),
 		usingRelay:      make(map[string]bool),
 		switchedToRelay: make(map[string]time.Time),
@@ -105,6 +108,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 	defer d.tunnel.Down()
 
 	slog.Info("tunnel up", "ip", d.cfg.AssignedIP, "peers", len(tunnelCfg.Peers))
+
+	go d.startSocketServer(ctx)
 
 	// Probe each peer immediately so WireGuard initiates handshakes now
 	// rather than waiting up to 25 s for the first periodic keepalive.

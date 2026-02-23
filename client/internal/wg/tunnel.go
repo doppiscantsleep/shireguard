@@ -42,6 +42,7 @@ type Tunnel struct {
 	tunDev tun.Device
 	mu     sync.Mutex
 	up     bool
+	ifName string
 }
 
 func NewTunnel() *Tunnel {
@@ -96,6 +97,7 @@ func (t *Tunnel) Up(cfg *TunnelConfig) error {
 
 	t.device = dev
 	t.tunDev = tunDevice
+	t.ifName = ifName
 	t.up = true
 
 	return nil
@@ -124,6 +126,14 @@ func (t *Tunnel) IsUp() bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.up
+}
+
+// Name returns the OS-assigned interface name (e.g. "utun8"), or empty string
+// if the tunnel is not up.
+func (t *Tunnel) Name() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.ifName
 }
 
 func (t *Tunnel) UpdatePeers(peers []PeerConfig) error {
@@ -225,6 +235,8 @@ func run(name string, args ...string) error {
 type PeerStat struct {
 	LastHandshakeTime time.Time
 	Endpoint          string
+	TxBytes           int64
+	RxBytes           int64
 }
 
 // GetPeerStats returns a map of base64 public key → PeerStat by reading
@@ -298,6 +310,20 @@ func parsePeerStats(ipcOutput string) map[string]PeerStat {
 				sec, err := strconv.ParseInt(val, 10, 64)
 				if err == nil && sec > 0 {
 					currentStat.LastHandshakeTime = time.Unix(sec, 0)
+				}
+			}
+
+		case "tx_bytes":
+			if inPeer {
+				if n, err := strconv.ParseInt(val, 10, 64); err == nil {
+					currentStat.TxBytes = n
+				}
+			}
+
+		case "rx_bytes":
+			if inPeer {
+				if n, err := strconv.ParseInt(val, 10, 64); err == nil {
+					currentStat.RxBytes = n
 				}
 			}
 		}

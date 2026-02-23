@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -282,6 +283,7 @@ func upCmd() *cobra.Command {
 			}()
 
 			d := daemon.New(cfg)
+			d.Version = version
 			return d.Run(ctx)
 		},
 	}
@@ -419,11 +421,141 @@ func downCmd() *cobra.Command {
 	}
 }
 
+// queryDaemonStatus dials the daemon's Unix socket and returns live status.
+// Returns an error if the daemon is not running or the socket is unavailable.
+func queryDaemonStatus() (*daemon.DaemonStatus, error) {
+	sockPath, err := config.SocketFile()
+	if err != nil {
+		return nil, err
+	}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return net.Dial("unix", sockPath)
+		},
+	}
+	client := &http.Client{Transport: transport, Timeout: 2 * time.Second}
+	resp, err := client.Get("http://daemon/status")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var status daemon.DaemonStatus
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return nil, err
+	}
+	return &status, nil
+}
+
+const (
+	ansiReset  = "\033[0m"
+	ansiGreen  = "\033[32m"
+	ansiYellow = "\033[33m"
+	ansiDim    = "\033[2m"
+)
+
+func formatUptime(seconds int64) string {
+	if seconds < 60 {
+		return fmt.Sprintf("%ds", seconds)
+	}
+	if seconds < 3600 {
+		return fmt.Sprintf("%dm %ds", seconds/60, seconds%60)
+	}
+	return fmt.Sprintf("%dh %dm", seconds/3600, (seconds%3600)/60)
+}
+
+func formatBytes(n int64) string {
+	switch {
+	case n < 1024:
+		return fmt.Sprintf("%d B", n)
+	case n < 1024*1024:
+		return fmt.Sprintf("%.1f KB", float64(n)/1024)
+	case n < 1024*1024*1024:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1024*1024))
+	default:
+		return fmt.Sprintf("%.1f GB", float64(n)/(1024*1024*1024))
+	}
+}
+
+func formatHandshakeAge(secs int64) string {
+	switch {
+	case secs < 60:
+		return fmt.Sprintf("%ds ago", secs)
+	case secs < 3600:
+		return fmt.Sprintf("%dm ago", secs/60)
+	default:
+		return fmt.Sprintf("%dh ago", secs/3600)
+	}
+}
+
+func printDaemonStatus(ds *daemon.DaemonStatus) {
+	// Header line
+	fmt.Printf("Shireguard %s  ·  %s  ·  %s  ·  up %s\n",
+		ds.Version, ds.Interface, ds.AssignedIP, formatUptime(ds.UptimeSeconds))
+	fmt.Println()
+
+	// Public endpoint and relay
+	if ds.StunEndpoint != "" {
+		fmt.Printf("  Public endpoint:  %s\n", ds.StunEndpoint)
+	}
+	if ds.Relay != nil {
+		relayLine := fmt.Sprintf("%s:%d", ds.Relay.Host, ds.Relay.Port)
+		if ds.Relay.Connected {
+			relayLine += "  (connected)"
+		} else {
+			relayLine += "  (disconnected)"
+		}
+		fmt.Printf("  Relay:            %s\n", relayLine)
+	}
+
+	if len(ds.Peers) == 0 {
+		fmt.Println("\n  No peers.")
+		return
+	}
+
+	fmt.Println()
+	fmt.Printf("  %-16s %-14s %-7s %-12s %-9s %s\n",
+		"PEER", "IP", "PATH", "HANDSHAKE", "TX", "RX")
+
+	for _, p := range ds.Peers {
+		stale := p.LastHandshake == nil || p.HandshakeAgeSeconds > 90
+
+		pathColor := ansiGreen
+		if p.ConnectionType == "relay" {
+			pathColor = ansiYellow
+		}
+
+		handshakeStr := "never"
+		if p.LastHandshake != nil {
+			handshakeStr = formatHandshakeAge(p.HandshakeAgeSeconds)
+		}
+
+		peerStr := p.Name
+		handshakeDisplay := handshakeStr
+		if stale {
+			peerStr = ansiDim + peerStr + ansiReset
+			handshakeDisplay = ansiDim + handshakeStr + ansiReset
+		}
+
+		pathStr := pathColor + p.ConnectionType + ansiReset
+
+		fmt.Printf("  %-16s %-14s %-7s %-12s %-9s %s\n",
+			peerStr, p.AssignedIP, pathStr, handshakeDisplay,
+			formatBytes(p.TxBytes), formatBytes(p.RxBytes))
+	}
+}
+
 func statusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show connection status",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Try the live daemon socket first.
+			if ds, err := queryDaemonStatus(); err == nil {
+				printDaemonStatus(ds)
+				return nil
+			}
+
+			// Daemon not running — fall back to config + API display.
 			if !cfg.IsLoggedIn() {
 				fmt.Println("Status: not logged in")
 				return nil
@@ -440,7 +572,6 @@ func statusCmd() *cobra.Command {
 			fmt.Printf("Network:  %s\n", cfg.NetworkID[:8]+"...")
 			fmt.Printf("API:      %s\n", cfg.APIURL)
 
-			// Try to list peers
 			client := newClient()
 			peers, err := client.GetPeers(cfg.NetworkID)
 			if err != nil {

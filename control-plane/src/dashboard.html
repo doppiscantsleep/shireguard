@@ -846,6 +846,97 @@ body{
 .invite-row:last-child{border-bottom:none}
 .invite-row-info{flex:1;min-width:0}
 .invite-row-meta{font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted)}
+
+/* ── Device Detail Drawer ── */
+.drawer-backdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1200;
+  opacity:0;pointer-events:none;transition:opacity .2s ease;
+}
+[data-theme="light"] .drawer-backdrop{background:rgba(0,0,0,.3)}
+.drawer-backdrop.open{opacity:1;pointer-events:auto}
+.device-drawer{
+  position:fixed;top:0;right:0;bottom:0;width:420px;
+  background:var(--bg-elevated);border-left:1px solid var(--border);
+  z-index:1201;transform:translateX(100%);transition:transform .2s ease;
+  display:flex;flex-direction:column;overflow-y:auto;
+}
+.device-drawer.open{transform:translateX(0)}
+.drawer-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.drawer-header-info{display:flex;align-items:center;gap:.65rem;min-width:0}
+.drawer-device-name{
+  font-family:var(--font-display);font-size:1.1rem;font-weight:700;
+  color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.drawer-status-badge{
+  display:inline-flex;align-items:center;gap:.35rem;
+  padding:.15rem .55rem;font-size:.68rem;font-weight:700;
+  font-family:var(--font-mono);text-transform:uppercase;border-radius:20px;
+  flex-shrink:0;
+}
+.drawer-status-badge.online{background:var(--green-dim);color:var(--green);border:1px solid rgba(92,184,92,.25)}
+.drawer-status-badge.offline{background:var(--bg-surface);color:var(--text-muted);border:1px solid var(--border)}
+.drawer-close{
+  background:none;border:1px solid var(--border);color:var(--text-muted);
+  width:30px;height:30px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;border-radius:var(--radius);transition:all .15s;
+  flex-shrink:0;font-size:1.1rem;line-height:1;
+}
+.drawer-close:hover{color:var(--text-primary);border-color:var(--text-muted)}
+.drawer-body{padding:1.25rem 1.5rem;flex:1}
+.drawer-field{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  padding:.7rem 0;border-bottom:1px solid var(--border);gap:.75rem;
+}
+.drawer-field:last-child{border-bottom:none}
+.drawer-field-label{
+  font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--text-muted);font-family:var(--font-mono);flex-shrink:0;padding-top:.1rem;
+}
+.drawer-field-value{
+  font-size:.85rem;color:var(--text-primary);text-align:right;
+  display:flex;align-items:center;gap:.4rem;min-width:0;justify-content:flex-end;
+}
+.drawer-field-value .mono{
+  font-family:var(--font-mono);font-size:.8rem;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.drawer-copy-btn{
+  background:none;border:none;cursor:pointer;color:var(--text-muted);
+  padding:2px;transition:color .15s;line-height:0;flex-shrink:0;
+}
+.drawer-copy-btn:hover{color:var(--text-primary)}
+.drawer-copy-btn.copied{color:var(--accent)}
+.drawer-section-title{
+  font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--text-muted);font-family:var(--font-mono);margin-top:1.5rem;margin-bottom:.75rem;
+}
+.relay-entry{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg-surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:.65rem 1rem;
+}
+.relay-name{font-size:.85rem;font-weight:600;color:var(--text-primary)}
+.relay-region{font-size:.72rem;color:var(--text-muted);font-family:var(--font-mono)}
+.relay-right{display:flex;align-items:center;gap:.65rem}
+.relay-latency{font-family:var(--font-mono);font-size:.82rem;font-weight:600}
+.btn-measure{
+  background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-secondary);
+  padding:.3rem .7rem;font-size:.75rem;font-weight:500;cursor:pointer;
+  font-family:var(--font-sans);border-radius:var(--radius);transition:all .15s;
+}
+.btn-measure:hover{color:var(--text-primary);border-color:var(--text-muted)}
+.btn-measure:disabled{opacity:.5;cursor:default}
+.relay-spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@media(max-width:540px){
+  .device-drawer{width:100%}
+}
+/* Clickable device rows */
+.data-table tbody tr.device-row{cursor:pointer}
+.data-table tbody tr.device-row:hover td{background:var(--accent-dim)}
 </style>
 </head>
 <body>
@@ -2421,6 +2512,32 @@ body{
   </div>
 </div>
 
+<!-- Device Detail Drawer -->
+<div class="drawer-backdrop" id="device-drawer-backdrop"></div>
+<aside class="device-drawer" id="device-drawer" role="dialog" aria-label="Device details">
+  <div class="drawer-header">
+    <div class="drawer-header-info">
+      <span class="drawer-device-name" id="drawer-device-name"></span>
+      <span class="drawer-status-badge" id="drawer-status-badge"></span>
+    </div>
+    <button class="drawer-close" onclick="closeDeviceDrawer()" aria-label="Close">&times;</button>
+  </div>
+  <div class="drawer-body">
+    <div id="drawer-fields"></div>
+    <div class="drawer-section-title">Relay Servers</div>
+    <div class="relay-entry">
+      <div>
+        <div class="relay-name">US-East-2</div>
+        <div class="relay-region">Ohio</div>
+      </div>
+      <div class="relay-right">
+        <span id="relay-latency-result"></span>
+        <button class="btn-measure" id="relay-measure-btn" onclick="measureRelayLatency()">Measure</button>
+      </div>
+    </div>
+  </div>
+</aside>
+
 <div class="toast-container" id="toasts"></div>
 
 <script>
@@ -2769,8 +2886,10 @@ async function loadDevices() {
     const devices = data.devices || [];
     empty.style.display = devices.length ? 'none' : '';
     if (!devices.length) { tbody.innerHTML = ''; return; }
-    tbody.innerHTML = devices.map(d => `
-      <tr>
+    // Store devices for drawer access
+    window._devicesCache = devices;
+    tbody.innerHTML = devices.map((d, i) => `
+      <tr class="device-row" data-device-index="${i}">
         <td data-label="Name"><strong>${esc(d.name)}</strong></td>
         <td data-label="Platform"><span class="platform-badge">${esc(d.platform)}</span></td>
         <td data-label="IP" class="mono">${esc(d.assigned_ip)}</td>
@@ -2779,9 +2898,16 @@ async function loadDevices() {
           <span class="status-text ${d.online ? 'online' : 'offline'}">${d.online ? 'online' : 'offline'}</span>
         </td>
         <td data-label="Last Seen" class="mono" style="color:var(--text-secondary);font-size:.75rem">${d.last_seen_at ? timeAgo(d.last_seen_at) : '—'}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteDevice('${d.id}')">Remove</button></td>
+        <td><button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteDevice('${d.id}')">Remove</button></td>
       </tr>
     `).join('');
+    // Attach click handlers for device rows
+    tbody.querySelectorAll('.device-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const idx = parseInt(row.dataset.deviceIndex, 10);
+        openDeviceDrawer(window._devicesCache[idx]);
+      });
+    });
   } catch (err) {
     tbody.innerHTML = '';
     toast(err.message, 'error');
@@ -3495,12 +3621,138 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    closeDeviceDrawer();
     closeModals();
     closeSidebar();
     document.getElementById('confirm-overlay').classList.remove('open');
     _confirmCallback = null;
   }
 });
+
+// ── Device Detail Drawer ──
+const COPY_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>';
+const CHECK_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l4 4 8-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function platformLabel(p) {
+  if (!p) return '—';
+  const map = { macos: 'macOS', linux: 'Linux', raspberrypi: 'Raspberry Pi', windows: 'Windows', ios: 'iOS', android: 'Android' };
+  return map[p.toLowerCase()] || p;
+}
+
+function formatDateTime(dateStr) {
+  if (!dateStr) return '—';
+  const utc = /Z|[+-]\d{2}:\d{2}$/.test(dateStr) ? dateStr : dateStr + 'Z';
+  const d = new Date(utc);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} · ${h}:${m}`;
+}
+
+function formatAbsoluteDate(dateStr) {
+  if (!dateStr) return '';
+  const utc = /Z|[+-]\d{2}:\d{2}$/.test(dateStr) ? dateStr : dateStr + 'Z';
+  const d = new Date(utc);
+  return d.toLocaleString();
+}
+
+function drawerCopyBtn(value) {
+  if (!value) return '';
+  return `<button class="drawer-copy-btn" data-copy="${esc(value)}" title="Copy">${COPY_ICON}</button>`;
+}
+
+function drawerCopy(btn) {
+  const text = btn.getAttribute('data-copy');
+  navigator.clipboard.writeText(text).then(() => {
+    btn.classList.add('copied');
+    btn.innerHTML = CHECK_ICON;
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = COPY_ICON;
+    }, 1500);
+  });
+}
+
+function openDeviceDrawer(device) {
+  if (!device) return;
+  const drawer = document.getElementById('device-drawer');
+  const backdrop = document.getElementById('device-drawer-backdrop');
+
+  // Populate header
+  document.getElementById('drawer-device-name').textContent = device.name || '—';
+  const badge = document.getElementById('drawer-status-badge');
+  const isOnline = !!device.online;
+  badge.className = `drawer-status-badge ${isOnline ? 'online' : 'offline'}`;
+  badge.innerHTML = `<span class="status-dot ${isOnline ? 'online' : 'offline'}"></span>${isOnline ? 'Online' : 'Offline'}`;
+
+  // Populate fields
+  const truncKey = device.public_key ? (device.public_key.substring(0, 16) + '...') : '—';
+  const lastSeenRel = device.last_seen_at ? timeAgo(device.last_seen_at) : 'Never';
+  const lastSeenAbs = device.last_seen_at ? formatAbsoluteDate(device.last_seen_at) : '';
+
+  const fields = [
+    { label: 'Hostname', value: device.name, mono: false, copy: true },
+    { label: 'Private IP', value: device.assigned_ip, mono: true, copy: true },
+    { label: 'Public Endpoint', value: device.endpoint || '—', mono: true, copy: !!device.endpoint },
+    { label: 'Platform', value: platformLabel(device.platform), mono: false, copy: false },
+    { label: 'WireGuard Key', value: truncKey, rawValue: device.public_key, mono: true, copy: !!device.public_key },
+    { label: 'First Connected', value: formatDateTime(device.created_at), mono: false, copy: false },
+    { label: 'Last Seen', value: lastSeenRel, title: lastSeenAbs, mono: false, copy: false },
+  ];
+
+  const fieldsEl = document.getElementById('drawer-fields');
+  fieldsEl.innerHTML = fields.map(f => `
+    <div class="drawer-field">
+      <span class="drawer-field-label">${f.label}</span>
+      <span class="drawer-field-value"${f.title ? ` title="${esc(f.title)}"` : ''}>
+        <span${f.mono ? ' class="mono"' : ''}>${esc(f.value)}</span>
+        ${f.copy ? drawerCopyBtn(f.rawValue || f.value) : ''}
+      </span>
+    </div>
+  `).join('');
+  fieldsEl.querySelectorAll('.drawer-copy-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); drawerCopy(btn); });
+  });
+
+  // Reset relay ping
+  document.getElementById('relay-latency-result').innerHTML = '';
+  const measureBtn = document.getElementById('relay-measure-btn');
+  measureBtn.textContent = 'Measure';
+  measureBtn.disabled = false;
+
+  // Open
+  backdrop.classList.add('open');
+  drawer.classList.add('open');
+}
+
+function closeDeviceDrawer() {
+  document.getElementById('device-drawer').classList.remove('open');
+  document.getElementById('device-drawer-backdrop').classList.remove('open');
+}
+
+document.getElementById('device-drawer-backdrop').addEventListener('click', closeDeviceDrawer);
+
+async function measureRelayLatency() {
+  const btn = document.getElementById('relay-measure-btn');
+  const result = document.getElementById('relay-latency-result');
+  btn.disabled = true;
+  btn.textContent = 'Measuring...';
+  result.innerHTML = '<span class="relay-spinner"></span>';
+  try {
+    const data = await api('GET', '/v1/relays/ping');
+    const ms = data.latency_ms;
+    let colorVar = '--green';
+    if (ms > 200) colorVar = '--red';
+    else if (ms >= 80) colorVar = '--amber';
+    result.innerHTML = `<span class="relay-latency" style="color:var(${colorVar})">${ms} ms</span>`;
+    btn.textContent = 'Re-measure';
+    btn.disabled = false;
+  } catch (err) {
+    result.innerHTML = '<span class="relay-latency" style="color:var(--red)">Unreachable</span>';
+    btn.textContent = 'Re-measure';
+    btn.disabled = false;
+  }
+}
 
 // ── Helpers ──
 function esc(s) {

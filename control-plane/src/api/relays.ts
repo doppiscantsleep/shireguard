@@ -51,4 +51,29 @@ relays.post('/register', async (c) => {
   return c.json(data);
 });
 
+// GET /relays/ping — measure round-trip latency from the Cloudflare edge to the active relay
+relays.get('/ping', async (c) => {
+  const relay = await c.env.DB.prepare(
+    "SELECT host, port, region FROM relays WHERE status = 'active' ORDER BY created_at LIMIT 1"
+  ).first<{ host: string; port: number; region: string }>();
+
+  if (!relay) return c.json({ error: 'no relays available' }, 503);
+
+  const start = Date.now();
+  try {
+    const resp = await fetch(`http://${relay.host}:${relay.port}/health`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    const latency_ms = Date.now() - start;
+    if (!resp.ok) return c.json({ error: 'relay health check failed' }, 502);
+    return c.json({
+      relay_host: relay.host,
+      relay_region: relay.region || 'us-east-2',
+      latency_ms,
+    });
+  } catch {
+    return c.json({ error: 'relay unreachable', latency_ms: null }, 502);
+  }
+});
+
 export { relays };

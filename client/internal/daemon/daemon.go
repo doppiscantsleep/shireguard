@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 const (
 	heartbeatInterval      = 30 * time.Second
 	peerSyncInterval       = 15 * time.Second
-	connectivityInterval   = 30 * time.Second
+	connectivityInterval   = 10 * time.Second
 	relayKeepaliveInterval = 25 * time.Second
 	handshakeTimeout       = 90 * time.Second
 	relayBackoffDuration   = 5 * time.Minute
@@ -105,6 +106,12 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	slog.Info("tunnel up", "ip", d.cfg.AssignedIP, "peers", len(tunnelCfg.Peers))
 
+	// Probe each peer immediately so WireGuard initiates handshakes now
+	// rather than waiting up to 25 s for the first periodic keepalive.
+	for _, p := range tunnelCfg.Peers {
+		go triggerHandshake(strings.SplitN(p.AllowedIPs[0], "/", 2)[0])
+	}
+
 	// 4. Send initial heartbeat with discovered endpoint
 	if err := d.client.Heartbeat(d.cfg.DeviceID, d.stunEndpoint); err != nil {
 		slog.Error("initial heartbeat failed", "err", err)
@@ -159,6 +166,20 @@ func (d *Daemon) Run(ctx context.Context) error {
 			d.checkConnectivity()
 		}
 	}
+}
+
+// triggerHandshake sends a single probe packet to the peer's WireGuard IP,
+// causing wireguard-go to initiate a handshake immediately rather than waiting
+// for the next periodic keepalive (up to 25 s away). The packet is discarded
+// by the peer — we only care that WireGuard starts the handshake exchange.
+func triggerHandshake(peerWGIP string) {
+	conn, err := net.DialTimeout("udp", peerWGIP+":1", time.Second)
+	if err != nil {
+		return
+	}
+	conn.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
+	conn.Write([]byte{0})
+	conn.Close()
 }
 
 // backoffDuration returns base * 2^failures, capped at 5 minutes.
@@ -288,6 +309,7 @@ func (d *Daemon) updateRelayEndpoints() {
 			slog.Error("updating relay endpoint after reconnect", "peer", pubKey[:8], "err", err)
 		} else {
 			slog.Info("updated relay endpoint after reconnect", "peer", pubKey[:8], "endpoint", newEndpoint)
+			go triggerHandshake(peer.AssignedIP)
 		}
 	}
 }
@@ -512,6 +534,7 @@ func (d *Daemon) checkConnectivity() {
 			d.usingRelay[pubKey] = true
 			d.switchedToRelay[pubKey] = time.Now()
 			d.mu.Unlock()
+			go triggerHandshake(peer.AssignedIP)
 
 		} else if !noHandshake && usingRelay {
 			// Handshake is working; attempt to return to direct after backoff.
@@ -534,6 +557,7 @@ func (d *Daemon) checkConnectivity() {
 			d.usingRelay[pubKey] = false
 			delete(d.switchedToRelay, pubKey)
 			d.mu.Unlock()
+			go triggerHandshake(peer.AssignedIP)
 		}
 	}
 }

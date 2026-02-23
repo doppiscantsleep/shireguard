@@ -6,6 +6,7 @@
 <title>Shireguard</title>
 <!-- Initialise theme before first paint to avoid flash -->
 <script>(function(){var t=localStorage.getItem('sg_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})()</script>
+<link rel="icon" type="image/jpeg" href="/favicon.jpeg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Lora:ital,wght@0,600;0,700;1,600&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -124,9 +125,29 @@ body{
   transition:background .25s,color .25s;
 }
 
+/* ── Loading Screen ── */
+#loading-screen{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;position:relative;
+}
+.loading-logo{
+  font-family:var(--font-display);font-size:1.7rem;font-weight:700;
+  color:var(--accent);font-style:italic;opacity:.6;
+  animation:loading-fade 1.4s ease-in-out infinite;
+}
+@keyframes loading-fade{0%,100%{opacity:.4}50%{opacity:.9}}
+
+/* ── Session expired banner ── */
+.session-expired-banner{
+  display:none;background:var(--amber-dim);border:1px solid rgba(212,165,32,.3);
+  border-radius:var(--radius);padding:.6rem 1rem;margin-bottom:1.2rem;
+  font-size:.82rem;color:var(--amber);font-family:var(--font-sans);text-align:center;
+}
+.session-expired-banner.visible{display:block}
+
 /* ── Auth Screen ── */
 #auth-screen{
-  display:flex;align-items:center;justify-content:center;
+  display:none;align-items:center;justify-content:center;
   min-height:100vh;position:relative;
 }
 #auth-screen::before{
@@ -239,17 +260,6 @@ body{
   color:var(--accent);font-style:italic;
 }
 .header-logo span{color:var(--text-muted);font-weight:600;font-style:normal}
-.header-status{
-  font-family:var(--font-mono);font-size:.75rem;color:var(--text-muted);
-  display:flex;align-items:center;gap:.4rem;
-}
-.header-status::before{
-  content:'';width:6px;height:6px;border-radius:50%;
-  background:var(--green);
-  box-shadow:0 0 6px var(--green);
-  animation:pulse 2s ease-in-out infinite;
-}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .header-right{display:flex;align-items:center;gap:.75rem}
 .header-email{font-size:.8rem;color:var(--text-secondary);font-family:var(--font-mono)}
 .btn-logout{
@@ -325,7 +335,7 @@ body{
 /* ── Cards / Panels ── */
 .panel{
   background:var(--bg-surface);border:1px solid var(--border);
-  margin-bottom:1rem;border-radius:var(--radius);overflow:hidden;
+  margin-bottom:1rem;border-radius:var(--radius);overflow:hidden;overflow-x:auto;
 }
 .panel-header{
   padding:.75rem 1rem;border-bottom:1px solid var(--border);
@@ -611,7 +621,7 @@ body{
 .tech-section-badge.green{background:var(--green-dim);color:var(--green);border:1px solid rgba(92,184,92,.2)}
 .tech-section-badge.blue{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(91,141,217,.2)}
 .tech-section-badge.amber{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(212,165,32,.2)}
-.tech-section-body{padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:.9rem}
+.tech-section-body{padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:.9rem;overflow-x:auto}
 .tech-p{color:var(--text-secondary);font-size:.84rem;line-height:1.8;margin:0}
 .tech-p strong{color:var(--text-primary);font-weight:600}
 .tech-tag{font-family:var(--font-mono);font-size:.72rem;background:var(--accent-dim);color:var(--accent);padding:.1rem .38rem;border-radius:2px;white-space:nowrap}
@@ -686,12 +696,114 @@ body{
   font-size:.9rem;margin-bottom:.35rem;font-style:italic;
 }
 .about-card-body{color:var(--text-secondary);font-size:.8rem;line-height:1.65}
+
+/* ── Gatekeeper ── */
+.gk-default-btn{
+  background:transparent;border:1px solid var(--border);color:var(--text-secondary);
+  padding:.3rem .85rem;font-size:.8rem;font-weight:600;cursor:pointer;
+  font-family:var(--font-mono);border-radius:var(--radius);transition:all .15s;
+}
+.gk-default-btn:disabled{opacity:.4;cursor:default}
+.gk-default-btn.active[data-action="allow"]{background:var(--green-dim);color:var(--green);border-color:rgba(92,184,92,.4)}
+.gk-default-btn.active[data-action="block"]{background:var(--red-dim);color:var(--red);border-color:rgba(224,82,82,.4)}
+.gk-preset-btn{
+  background:transparent;border:1px solid var(--border);color:var(--text-secondary);
+  padding:.25rem .65rem;font-size:.75rem;font-weight:500;cursor:pointer;
+  font-family:var(--font-sans);border-radius:var(--radius);transition:all .15s;
+}
+.gk-preset-btn:hover{color:var(--text-primary);border-color:var(--text-muted)}
+.gk-rule-row{
+  display:flex;align-items:center;gap:.65rem;padding:.55rem 1rem;
+  border-bottom:1px solid var(--border);font-size:.82rem;flex-wrap:wrap;
+}
+.gk-rule-row:last-child{border-bottom:none}
+.gk-rule-row:hover{background:rgba(255,255,255,.02)}
+[data-theme="light"] .gk-rule-row:hover{background:rgba(0,0,0,.025)}
+.gk-action{
+  flex-shrink:0;padding:.12rem .5rem;font-size:.68rem;font-weight:700;
+  font-family:var(--font-mono);text-transform:uppercase;border-radius:var(--radius);
+  min-width:46px;text-align:center;
+}
+.gk-action.allow{background:var(--green-dim);color:var(--green)}
+.gk-action.block{background:var(--red-dim);color:var(--red)}
+.gk-proto{
+  flex-shrink:0;font-family:var(--font-mono);font-size:.75rem;color:var(--blue);
+  background:var(--blue-dim);padding:.1rem .45rem;border-radius:var(--radius);min-width:38px;text-align:center;
+}
+.gk-endpoint{font-family:var(--font-mono);font-size:.78rem;color:var(--text-secondary)}
+.gk-ep-label{font-size:.62rem;color:var(--text-muted);margin-right:.2rem}
+.gk-arrow{color:var(--text-muted);font-size:.8rem;flex-shrink:0}
+.gk-ports{font-family:var(--font-mono);font-size:.78rem;color:var(--accent)}
+.gk-desc{flex:1;font-size:.78rem;color:var(--text-muted);font-style:italic;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gk-save-bar{
+  display:none;margin-top:.75rem;padding:.75rem 1rem;
+  background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);
+  align-items:center;justify-content:space-between;gap:.75rem;
+}
+.gk-dirty-label{font-size:.8rem;color:var(--amber);font-family:var(--font-mono)}
+
+/* ── Role badges ── */
+.role-badge{
+  display:inline-block;padding:.1rem .45rem;
+  font-size:.65rem;font-family:var(--font-mono);font-weight:700;
+  text-transform:uppercase;letter-spacing:.04em;border-radius:var(--radius);
+}
+.role-badge.owner{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(212,165,32,.25)}
+.role-badge.admin{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(91,141,217,.25)}
+.role-badge.member{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(125,193,66,.2)}
+
+/* ── Members section inside network panel ── */
+.members-section{border-top:1px solid var(--border);padding:.75rem 1rem}
+.members-label{
+  font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--text-muted);margin-bottom:.6rem;font-family:var(--font-mono);
+}
+.member-row{
+  display:flex;align-items:center;gap:.55rem;
+  padding:.38rem 0;border-bottom:1px solid var(--border);
+}
+.member-row:last-child{border-bottom:none}
+.member-online-dot{
+  flex-shrink:0;width:7px;height:7px;border-radius:50%;
+}
+.member-online-dot.online{background:var(--green);box-shadow:0 0 5px var(--green)}
+.member-online-dot.offline{background:var(--text-muted)}
+.member-identity{flex:1;min-width:0;display:flex;align-items:baseline;gap:.45rem}
+.member-email{font-family:var(--font-mono);font-size:.78rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.member-you{font-size:.65rem;font-family:var(--font-mono);color:var(--text-muted);flex-shrink:0}
+.member-actions{display:flex;align-items:center;gap:.35rem;flex-shrink:0}
+
+/* ── Invite modal extras ── */
+.invite-url-box{
+  display:flex;align-items:center;gap:.5rem;
+  background:var(--bg-root);border:1px solid var(--border);
+  border-radius:var(--radius);padding:.5rem .75rem;margin-top:.75rem;
+}
+.invite-url-box input{
+  flex:1;background:none;border:none;outline:none;
+  font-family:var(--font-mono);font-size:.78rem;color:var(--accent);
+  min-width:0;
+}
+.active-invites{margin-top:1rem}
+.active-invites-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:.5rem;font-family:var(--font-mono)}
+.invite-row{
+  display:flex;align-items:center;gap:.6rem;
+  padding:.4rem 0;border-bottom:1px solid var(--border);font-size:.78rem;
+}
+.invite-row:last-child{border-bottom:none}
+.invite-row-info{flex:1;min-width:0}
+.invite-row-meta{font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted)}
 </style>
 </head>
 <body>
 
 <!-- Floating theme toggle (visible on auth screen) -->
 <button class="btn-theme-toggle btn-theme-float" onclick="toggleTheme()" title="Switch theme"><span class="theme-name">Shire Dark</span></button>
+
+<!-- LOADING SCREEN -->
+<div id="loading-screen">
+  <div class="loading-logo">shireguard</div>
+</div>
 
 <!-- AUTH SCREEN -->
 <div id="auth-screen">
@@ -810,6 +922,7 @@ body{
   <div class="auth-container">
     <div class="auth-logo">shireguard</div>
     <div class="auth-subtitle">WireGuard tunnels for the Free Folk of the network</div>
+    <div class="session-expired-banner" id="session-expired-banner">Your session has expired. Please sign in again.</div>
     <div class="auth-box">
       <div class="auth-box-content">
         <div class="auth-signin-label">Sign in to continue</div>
@@ -874,10 +987,10 @@ body{
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5"/></svg>
       </button>
       <div class="header-logo">shireguard</div>
-      <div class="header-status">connected</div>
     </div>
     <div class="header-right">
       <span class="header-email" id="user-email"></span>
+      <a href="/docs" target="_blank" class="btn-logout" style="text-decoration:none">docs</a>
       <button class="btn-theme-toggle" onclick="toggleTheme()" title="Switch theme"><span class="theme-name">Shire Dark</span></button>
       <button class="btn-logout" onclick="logout()">logout</button>
     </div>
@@ -897,6 +1010,14 @@ body{
       <button class="nav-item" data-page="networks">
         <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="3" r="2" stroke="currentColor" stroke-width="1.2"/><circle cx="3" cy="13" r="2" stroke="currentColor" stroke-width="1.2"/><circle cx="13" cy="13" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3M5.5 11.5L7 9M10.5 11.5L9 9" stroke="currentColor" stroke-width="1.2"/></svg>
         Networks
+      </button>
+      <button class="nav-item" data-page="users">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M1 13c0-2.5 2.2-4 5-4s5 1.5 5 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="12" cy="5" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M14 13c0-1.8-1.3-3-3-3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        Users
+      </button>
+      <button class="nav-item" data-page="gatekeep">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 3.5v4C2 11 5 13.8 8 15c3-1.2 6-4 6-7.5v-4L8 1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 8l1.5 1.5L10.5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Gatekeeper
       </button>
       <button class="nav-item" data-page="metrics">
         <svg class="nav-icon" viewBox="0 0 16 16" fill="none"><path d="M2 13l3-4 3 2 4-6 2 3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
@@ -1086,6 +1207,167 @@ body{
       <div class="empty-state" id="networks-empty" style="display:none">
         <div class="empty-state-icon">◇</div>
         <div class="empty-state-text">No networks found</div>
+      </div>
+    </div>
+
+    <!-- USERS PAGE -->
+    <div class="page" id="page-users" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Users</div>
+          <div class="page-desc">Members across your networks</div>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <label class="form-label" style="margin:0;white-space:nowrap">Network</label>
+          <select class="form-select" id="users-network-select" style="width:200px" onchange="loadUsers()"></select>
+        </div>
+      </div>
+
+      <div id="users-content" style="display:none">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Members <span id="users-count" style="font-weight:400;color:var(--text-muted);font-size:.75rem"></span></span>
+            <button class="btn btn-secondary btn-sm" id="users-invite-btn" style="display:none" onclick="usersOpenInvite()">+ Invite</button>
+          </div>
+          <div id="users-list"></div>
+          <div class="empty-state" id="users-empty" style="display:none">
+            <div class="empty-state-icon">◇</div>
+            <div class="empty-state-text">No members yet</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="empty-state" id="users-empty-network">
+        <div class="empty-state-icon">◇</div>
+        <div class="empty-state-text">Select a network to view its members</div>
+      </div>
+    </div>
+
+    <!-- GATEKEEP PAGE -->
+    <div class="page" id="page-gatekeep" style="display:none">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Gatekeeper</div>
+          <div class="page-desc">Network access control between peers</div>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <label class="form-label" style="margin:0;white-space:nowrap">Network</label>
+          <select class="form-select" id="gatekeep-network-select" style="width:200px" onchange="loadGatekeep()"></select>
+        </div>
+      </div>
+
+      <div id="gatekeep-content" style="display:none">
+
+        <!-- Default action + presets -->
+        <div class="panel" style="margin-bottom:1rem">
+          <div class="panel-header">
+            <span class="panel-title">Default Policy</span>
+            <span id="gk-readonly-badge" style="display:none;font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted)">read only</span>
+          </div>
+          <div class="panel-body" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+            <div style="display:flex;flex-direction:column;gap:.3rem">
+              <span style="font-size:.72rem;font-family:var(--font-mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em">Unmatched traffic</span>
+              <div style="display:flex;gap:.4rem">
+                <button class="gk-default-btn" data-action="allow" onclick="gkSetDefault('allow')">Allow</button>
+                <button class="gk-default-btn" data-action="block" onclick="gkSetDefault('block')">Block</button>
+              </div>
+            </div>
+            <div style="width:1px;height:36px;background:var(--border);flex-shrink:0"></div>
+            <div style="display:flex;flex-direction:column;gap:.3rem">
+              <span style="font-size:.72rem;font-family:var(--font-mono);color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em">Presets</span>
+              <div style="display:flex;gap:.35rem;flex-wrap:wrap" id="gk-presets">
+                <button class="gk-preset-btn" onclick="gkApplyPreset('allow_all')">Allow All</button>
+                <button class="gk-preset-btn" onclick="gkApplyPreset('block_all')">Block All</button>
+                <button class="gk-preset-btn" onclick="gkApplyPreset('web')">Web Only</button>
+                <button class="gk-preset-btn" onclick="gkApplyPreset('ssh_web')">SSH + Web</button>
+                <button class="gk-preset-btn" onclick="gkApplyPreset('dev')">Dev</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rules -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Rules <span id="gk-rule-count" style="font-weight:400;color:var(--text-muted);font-size:.75rem"></span></span>
+            <div style="display:flex;gap:.5rem">
+              <button class="btn btn-secondary btn-sm" onclick="gkToggleJson()">{ } JSON</button>
+              <button class="btn btn-secondary btn-sm" id="gk-add-btn" onclick="gkToggleAddForm()">+ Add Rule</button>
+            </div>
+          </div>
+
+          <!-- Add rule inline form -->
+          <div id="gk-add-form" style="display:none;padding:.75rem 1rem;border-bottom:1px solid var(--border);background:var(--bg-elevated)">
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+              <div style="display:flex;flex-direction:column;gap:.25rem">
+                <label class="form-label" style="font-size:.65rem;margin:0">Action</label>
+                <select class="form-select" id="gk-new-action" style="padding:.32rem .5rem;font-size:.8rem;width:80px">
+                  <option value="allow">Allow</option>
+                  <option value="block">Block</option>
+                </select>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.25rem">
+                <label class="form-label" style="font-size:.65rem;margin:0">Protocol</label>
+                <select class="form-select" id="gk-new-proto" style="padding:.32rem .5rem;font-size:.8rem;width:80px" onchange="gkProtoChange()">
+                  <option value="any">Any</option>
+                  <option value="tcp">TCP</option>
+                  <option value="udp">UDP</option>
+                  <option value="icmp">ICMP</option>
+                </select>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.25rem">
+                <label class="form-label" style="font-size:.65rem;margin:0">Source</label>
+                <input class="form-input" id="gk-new-src" placeholder="any" style="padding:.32rem .5rem;font-size:.8rem;width:120px">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.25rem">
+                <label class="form-label" style="font-size:.65rem;margin:0">Destination</label>
+                <input class="form-input" id="gk-new-dst" placeholder="any" style="padding:.32rem .5rem;font-size:.8rem;width:120px">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.25rem" id="gk-ports-wrap">
+                <label class="form-label" style="font-size:.65rem;margin:0">Ports</label>
+                <input class="form-input" id="gk-new-ports" placeholder="any / 22 / 80,443" style="padding:.32rem .5rem;font-size:.8rem;width:140px">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.25rem">
+                <label class="form-label" style="font-size:.65rem;margin:0">Description</label>
+                <input class="form-input" id="gk-new-desc" placeholder="optional" style="padding:.32rem .5rem;font-size:.8rem;width:140px">
+              </div>
+              <div style="display:flex;gap:.35rem;align-self:flex-end">
+                <button class="btn btn-primary btn-sm" onclick="gkAddRule()">Add</button>
+                <button class="btn btn-secondary btn-sm" onclick="gkToggleAddForm()">Cancel</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rules list -->
+          <div id="gk-rules-list"></div>
+          <div id="gk-rules-empty" style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.82rem">
+            No rules — all traffic follows the default policy above
+          </div>
+
+          <!-- JSON editor -->
+          <div id="gk-json-panel" style="display:none;padding:1rem;border-top:1px solid var(--border)">
+            <textarea id="gk-json-editor" class="form-input" style="font-family:var(--font-mono);font-size:.78rem;min-height:180px;resize:vertical;white-space:pre;width:100%"></textarea>
+            <div style="display:flex;gap:.5rem;margin-top:.5rem">
+              <button class="btn btn-secondary btn-sm" onclick="gkApplyJson()">Apply</button>
+              <button class="btn btn-secondary btn-sm" onclick="gkToggleJson()">Close</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Save bar -->
+        <div class="gk-save-bar" id="gk-save-bar">
+          <span class="gk-dirty-label">Unsaved changes</span>
+          <div style="display:flex;gap:.5rem">
+            <button class="btn btn-secondary btn-sm" onclick="loadGatekeep()">Discard</button>
+            <button class="btn btn-primary btn-sm" onclick="gkSave()">Save Policy</button>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="empty-state" id="gatekeep-empty">
+        <div class="empty-state-icon">⚔</div>
+        <div class="empty-state-text">Select a network to manage its access policy</div>
       </div>
     </div>
 
@@ -2013,6 +2295,60 @@ body{
   </div>
 </div>
 
+<!-- Invite modal -->
+<div class="modal-overlay" id="modal-invite">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Invite to Network</span>
+      <button class="modal-close" onclick="closeModals()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="invite-form">
+        <div class="form-group">
+          <label class="form-label">Role</label>
+          <select class="form-select" id="invite-role" name="role">
+            <option value="member">Member</option>
+            <option value="admin" id="invite-role-admin-opt">Admin</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max uses</label>
+          <select class="form-select" id="invite-max-uses" name="max_uses">
+            <option value="1">1 use</option>
+            <option value="5">5 uses</option>
+            <option value="10">10 uses</option>
+            <option value="1000">Unlimited</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expires</label>
+          <select class="form-select" id="invite-expires" name="expires_hours">
+            <option value="24">24 hours</option>
+            <option value="168" selected>7 days</option>
+            <option value="720">30 days</option>
+          </select>
+        </div>
+        <div id="invite-link-box" style="display:none">
+          <div class="invite-url-box">
+            <input type="text" id="invite-link-input" readonly>
+            <button type="button" class="btn-copy" id="invite-copy-btn" onclick="copyInviteLink()" title="Copy link">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="active-invites" id="active-invites-section" style="display:none">
+          <div class="active-invites-label">Active invites</div>
+          <div id="active-invites-list"></div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModals()">Close</button>
+      <button class="btn btn-primary btn-sm" id="generate-invite-btn" onclick="generateInvite()">Generate Link</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-container" id="toasts"></div>
 
 <script>
@@ -2022,6 +2358,18 @@ let refreshToken = null;
 let userEmail = null;
 let networks = [];
 let currentPage = 'devices';
+let currentInviteNetworkId = null;
+let currentInviteNetworkRole = null;
+
+let sessionExpired = false;
+
+function showInitialScreen() {
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  if (sessionExpired) {
+    document.getElementById('session-expired-banner').classList.add('visible');
+  }
+}
 
 // Initialise session: handle Apple OAuth redirect, or restore a persisted session
 (async function initSession() {
@@ -2033,6 +2381,7 @@ let currentPage = 'devices';
     localStorage.removeItem('sg_access_token');
     localStorage.removeItem('sg_refresh_token');
     localStorage.removeItem('sg_user_email');
+    document.getElementById('loading-screen').style.display = 'none';
     handleAuth({ access_token: at, refresh_token: rt, user: { email: em || '' } });
     return;
   }
@@ -2045,18 +2394,23 @@ let currentPage = 'devices';
     userEmail = sem;
     const ok = await tryRefresh(); // access token is short-lived; always refresh on restore
     if (ok) {
+      document.getElementById('loading-screen').style.display = 'none';
       document.getElementById('user-email').textContent = userEmail;
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('app-screen').style.display = 'block';
       document.querySelector('.btn-theme-float').style.display = 'none';
       loadAll();
+      checkPendingInvite();
     } else {
       refreshToken = null;
       userEmail = null;
       localStorage.removeItem('sg_session_rt');
       localStorage.removeItem('sg_session_email');
+      // Show session-expired banner on the auth screen
+      sessionExpired = true;
     }
   }
+  showInitialScreen();
 })();
 
 // ── Show app and jump to a page without requiring login (for static pages like tech) ──
@@ -2149,6 +2503,23 @@ function handleAuth(data) {
   document.getElementById('app-screen').style.display = 'block';
   document.querySelector('.btn-theme-float').style.display = 'none';
   loadAll();
+  checkPendingInvite();
+}
+
+async function checkPendingInvite() {
+  const token = sessionStorage.getItem('pending_invite');
+  if (!token) return;
+  sessionStorage.removeItem('pending_invite');
+  try {
+    const d = await api('POST', `/v1/invites/${token}/accept`);
+    if (!d) return;
+    toast(`Joined ${d.network_name} as ${d.role}`, 'success');
+    await loadNetworksList();
+    if (currentPage === 'networks') loadNetworks();
+    else navigateTo('networks');
+  } catch (err) {
+    toast(`Invite error: ${err.message}`, 'error');
+  }
 }
 
 function logout() {
@@ -2157,7 +2528,7 @@ function logout() {
   userEmail = null;
   localStorage.removeItem('sg_session_rt');
   localStorage.removeItem('sg_session_email');
-  document.getElementById('auth-screen').style.display = '';
+  document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('app-screen').style.display = 'none';
   document.querySelector('.btn-theme-float').style.display = '';
 }
@@ -2178,6 +2549,8 @@ function navigateTo(page) {
   document.getElementById(`page-${page}`).style.display = '';
   if (page === 'devices') loadDevices();
   if (page === 'networks') loadNetworks();
+  if (page === 'users') loadUsers();
+  if (page === 'gatekeep') loadGatekeep();
   if (page === 'metrics') loadMetricsSummary();
   if (page === 'apikeys') loadApiKeys();
   if (page === 'account') loadAccount();
@@ -2199,7 +2572,7 @@ async function loadNetworksList() {
 }
 
 function populateNetworkSelects() {
-  const selects = [document.getElementById('device-network-select'), document.getElementById('metrics-network-select')];
+  const selects = [document.getElementById('device-network-select'), document.getElementById('metrics-network-select'), document.getElementById('gatekeep-network-select'), document.getElementById('users-network-select')];
   selects.forEach(sel => {
     if (!sel) return;
     sel.innerHTML = '';
@@ -2282,15 +2655,20 @@ async function loadNetworks() {
   for (const n of networks) {
     const panel = document.createElement('div');
     panel.className = 'panel';
+    const role = n.role || 'owner';
+    const canManage = role === 'owner' || role === 'admin';
+    const isOwner = role === 'owner';
     panel.innerHTML = `
       <div class="panel-header">
-        <div>
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
           <span class="panel-title">${esc(n.name)}</span>
-          <span class="mono" style="margin-left:.75rem;color:var(--text-muted);font-size:.75rem">${esc(n.cidr)}</span>
+          <span class="mono" style="color:var(--text-muted);font-size:.75rem">${esc(n.cidr)}</span>
+          <span class="role-badge ${role}">${role}</span>
         </div>
         <div style="display:flex;align-items:center;gap:.75rem">
           <span style="font-size:.8rem;color:var(--text-secondary)">${n.device_count || 0} device${(n.device_count||0)!==1?'s':''}</span>
-          <button class="btn btn-danger btn-sm" onclick="deleteNetwork('${n.id}')">Delete</button>
+          ${canManage ? `<button class="btn btn-secondary btn-sm" onclick="openInviteModal('${n.id}','${role}')">Invite</button>` : ''}
+          ${isOwner ? `<button class="btn btn-danger btn-sm" onclick="deleteNetwork('${n.id}')">Delete</button>` : ''}
         </div>
       </div>
       <div class="panel-body" id="peers-${n.id}"><span class="spinner"></span></div>
@@ -2343,6 +2721,440 @@ async function deleteNetwork(id) {
     await api('DELETE', `/v1/networks/${id}`);
     toast('Network deleted', 'success');
     loadNetworks();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function loadMembers(networkId, _callerRole) {
+  const container = document.getElementById(`members-list-${networkId}`);
+  if (!container) return;
+  try {
+    const data = await api('GET', `/v1/networks/${networkId}/members`);
+    if (!data) return;
+    const members = data.members || [];
+    const callerRole = data.caller_role || _callerRole;
+    if (!members.length) {
+      container.innerHTML = '<span style="color:var(--text-muted)">No members</span>';
+      return;
+    }
+    container.innerHTML = members.map(m => {
+      const isSelf = m.email === userEmail;
+      const canRemove = (callerRole === 'owner' && m.role !== 'owner') ||
+                        (callerRole === 'admin' && m.role === 'member' && !isSelf);
+      const canChangeRole = callerRole === 'owner' && m.role !== 'owner';
+      return `
+        <div class="member-row">
+          <span class="member-online-dot ${m.online ? 'online' : 'offline'}" title="${m.online ? 'Connected' : 'Offline'}"></span>
+          <div class="member-identity">
+            <span class="member-email" title="${esc(m.email)}">${esc(m.email)}</span>
+            ${isSelf ? '<span class="member-you">you</span>' : ''}
+          </div>
+          <span class="role-badge ${m.role}">${m.role}</span>
+          <div class="member-actions">
+            ${canChangeRole ? `
+              <select class="form-select" style="padding:.2rem .5rem;font-size:.72rem;width:auto"
+                onchange="changeMemberRole('${networkId}','${m.user_id}',this.value)">
+                <option value="admin" ${m.role==='admin'?'selected':''}>Admin</option>
+                <option value="member" ${m.role==='member'?'selected':''}>Member</option>
+              </select>` : ''}
+            ${canRemove ? `<button class="btn btn-danger btn-sm" style="padding:.2rem .55rem" onclick="removeMember('${networkId}','${m.user_id}')">Remove</button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    container.innerHTML = `<span style="color:var(--red);font-size:.78rem">${esc(err?.message)}</span>`;
+  }
+}
+
+async function removeMember(networkId, memberId) {
+  if (!confirm('Remove this member from the network?')) return;
+  try {
+    await api('DELETE', `/v1/networks/${networkId}/members/${memberId}`);
+    toast('Member removed', 'success');
+    loadNetworks();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function changeMemberRole(networkId, memberId, newRole) {
+  try {
+    await api('PATCH', `/v1/networks/${networkId}/members/${memberId}`, { role: newRole });
+    toast('Role updated', 'success');
+    loadNetworks();
+  } catch (err) { toast(err.message, 'error'); loadNetworks(); }
+}
+
+function openInviteModal(networkId, callerRole) {
+  currentInviteNetworkId = networkId;
+  currentInviteNetworkRole = callerRole;
+  document.getElementById('invite-link-box').style.display = 'none';
+  document.getElementById('active-invites-section').style.display = 'none';
+  document.getElementById('invite-link-input').value = '';
+  document.getElementById('invite-form').reset();
+  // Admins can't set admin role
+  document.getElementById('invite-role-admin-opt').disabled = callerRole !== 'owner';
+  document.getElementById('modal-invite').classList.add('open');
+  loadActiveInvites(networkId);
+}
+
+async function loadActiveInvites(networkId) {
+  try {
+    const data = await api('GET', `/v1/networks/${networkId}/invites`);
+    if (!data) return;
+    const invites = data.invites || [];
+    const section = document.getElementById('active-invites-section');
+    const list = document.getElementById('active-invites-list');
+    if (!invites.length) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    list.innerHTML = invites.map(inv => {
+      const usesLeft = inv.max_uses >= 1000 ? '∞' : `${inv.max_uses - inv.use_count}/${inv.max_uses}`;
+      const exp = new Date(inv.expires_at + (inv.expires_at.includes('T') ? 'Z' : 'Z'));
+      const expStr = exp.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+      return `
+        <div class="invite-row">
+          <div class="invite-row-info">
+            <span class="role-badge ${inv.role}">${inv.role}</span>
+            <span class="invite-row-meta" style="margin-left:.4rem">${usesLeft} uses · expires ${expStr}</span>
+          </div>
+          <button class="btn btn-danger btn-sm" style="padding:.2rem .55rem" onclick="revokeInvite('${networkId}','${inv.id}')">Revoke</button>
+        </div>`;
+    }).join('');
+  } catch { /* ignore */ }
+}
+
+async function generateInvite() {
+  if (!currentInviteNetworkId) return;
+  const role = document.getElementById('invite-role').value;
+  const maxUses = parseInt(document.getElementById('invite-max-uses').value);
+  const expiresHours = parseInt(document.getElementById('invite-expires').value);
+  try {
+    const data = await api('POST', `/v1/networks/${currentInviteNetworkId}/invites`, {
+      role, max_uses: maxUses, expires_hours: expiresHours,
+    });
+    if (!data) return;
+    document.getElementById('invite-link-input').value = data.invite_url;
+    document.getElementById('invite-link-box').style.display = '';
+    loadActiveInvites(currentInviteNetworkId);
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+function copyInviteLink() {
+  const val = document.getElementById('invite-link-input').value;
+  navigator.clipboard.writeText(val).then(() => {
+    const btn = document.getElementById('invite-copy-btn');
+    btn.classList.add('copied');
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l4 4 8-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>';
+    }, 1500);
+  });
+}
+
+async function revokeInvite(networkId, inviteId) {
+  try {
+    await api('DELETE', `/v1/networks/${networkId}/invites/${inviteId}`);
+    toast('Invite revoked', 'success');
+    loadActiveInvites(networkId);
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ── Users ──
+let usersNetworkRole = 'member';
+
+async function loadUsers() {
+  const networkId = document.getElementById('users-network-select')?.value;
+  const content = document.getElementById('users-content');
+  const emptyNet = document.getElementById('users-empty-network');
+  if (!networkId) {
+    content.style.display = 'none';
+    emptyNet.style.display = '';
+    return;
+  }
+  content.style.display = '';
+  emptyNet.style.display = 'none';
+  document.getElementById('users-list').innerHTML = '<div style="padding:1.5rem;text-align:center"><span class="spinner"></span></div>';
+  try {
+    const data = await api('GET', `/v1/networks/${networkId}/members`);
+    if (!data) return;
+    usersNetworkRole = data.caller_role;
+    const members = data.members || [];
+    const canManage = usersNetworkRole === 'owner' || usersNetworkRole === 'admin';
+
+    document.getElementById('users-invite-btn').style.display = canManage ? '' : 'none';
+    document.getElementById('users-count').textContent = members.length ? `(${members.length})` : '';
+
+    const empty = document.getElementById('users-empty');
+    const list = document.getElementById('users-list');
+    if (!members.length) { list.innerHTML = ''; empty.style.display = ''; return; }
+    empty.style.display = 'none';
+
+    list.innerHTML = members.map(m => {
+      const isSelf = m.email === userEmail;
+      const canRemove = !isSelf && (
+        (usersNetworkRole === 'owner' && m.role !== 'owner') ||
+        (usersNetworkRole === 'admin' && m.role === 'member')
+      );
+      const canChangeRole = usersNetworkRole === 'owner' && m.role !== 'owner';
+
+      return `
+        <div class="member-row" style="padding:.55rem 1rem">
+          <span class="member-online-dot ${m.online ? 'online' : 'offline'}" title="${m.online ? 'Connected' : 'Offline'}"></span>
+          <div class="member-identity" style="flex:1;min-width:0">
+            <span class="member-email" title="${esc(m.email)}">${esc(m.email)}</span>
+            ${isSelf ? '<span class="member-you">you</span>' : ''}
+          </div>
+          <span class="role-badge ${m.role}">${m.role}</span>
+          <div class="member-actions">
+            ${canChangeRole ? `
+              <select class="form-select" style="padding:.2rem .5rem;font-size:.72rem;width:auto"
+                onchange="usersChangeRole('${networkId}','${m.user_id}',this.value)">
+                <option value="admin" ${m.role==='admin'?'selected':''}>Admin</option>
+                <option value="member" ${m.role==='member'?'selected':''}>Member</option>
+              </select>` : ''}
+            ${canRemove ? `<button class="btn btn-danger btn-sm" style="padding:.2rem .55rem" onclick="usersRemove('${networkId}','${m.user_id}')">Remove</button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    document.getElementById('users-list').innerHTML = `<div style="padding:1rem;color:var(--red);font-size:.82rem">${esc(err?.message)}</div>`;
+  }
+}
+
+async function usersChangeRole(networkId, memberId, newRole) {
+  try {
+    await api('PATCH', `/v1/networks/${networkId}/members/${memberId}`, { role: newRole });
+    toast('Role updated', 'success');
+    loadUsers();
+  } catch (err) { toast(err.message, 'error'); loadUsers(); }
+}
+
+async function usersRemove(networkId, memberId) {
+  if (!confirm('Remove this member from the network?')) return;
+  try {
+    await api('DELETE', `/v1/networks/${networkId}/members/${memberId}`);
+    toast('Member removed', 'success');
+    loadUsers();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+function usersOpenInvite() {
+  const networkId = document.getElementById('users-network-select')?.value;
+  if (networkId) openInviteModal(networkId, usersNetworkRole);
+}
+
+// ── Gatekeeper ──
+let gkPolicy = { default_action: 'allow', rules: [] };
+let gkCallerRole = 'member';
+let gkDirty = false;
+
+const GK_PRESETS = {
+  allow_all: { default_action: 'allow', rules: [] },
+  block_all: { default_action: 'block', rules: [] },
+  web: {
+    default_action: 'block',
+    rules: [
+      { id: crypto.randomUUID(), description: 'Allow HTTPS', action: 'allow', protocol: 'tcp', src: 'any', dst: 'any', ports: '443' },
+      { id: crypto.randomUUID(), description: 'Allow HTTP',  action: 'allow', protocol: 'tcp', src: 'any', dst: 'any', ports: '80'  },
+      { id: crypto.randomUUID(), description: 'Allow Ping',  action: 'allow', protocol: 'icmp', src: 'any', dst: 'any', ports: ''   },
+    ],
+  },
+  ssh_web: {
+    default_action: 'block',
+    rules: [
+      { id: crypto.randomUUID(), description: 'Allow SSH',   action: 'allow', protocol: 'tcp', src: 'any', dst: 'any', ports: '22'      },
+      { id: crypto.randomUUID(), description: 'Allow HTTPS', action: 'allow', protocol: 'tcp', src: 'any', dst: 'any', ports: '443'     },
+      { id: crypto.randomUUID(), description: 'Allow HTTP',  action: 'allow', protocol: 'tcp', src: 'any', dst: 'any', ports: '80'      },
+      { id: crypto.randomUUID(), description: 'Allow Ping',  action: 'allow', protocol: 'icmp', src: 'any', dst: 'any', ports: ''      },
+    ],
+  },
+  dev: {
+    default_action: 'block',
+    rules: [
+      { id: crypto.randomUUID(), description: 'Allow SSH',       action: 'allow', protocol: 'tcp', src: 'any', dst: 'any', ports: '22'   },
+      { id: crypto.randomUUID(), description: 'Allow HTTPS',     action: 'allow', protocol: 'tcp', src: 'any', dst: 'any', ports: '443'  },
+      { id: crypto.randomUUID(), description: 'Allow HTTP',      action: 'allow', protocol: 'tcp', src: 'any', dst: 'any', ports: '80'   },
+      { id: crypto.randomUUID(), description: 'Allow DNS (UDP)', action: 'allow', protocol: 'udp', src: 'any', dst: 'any', ports: '53'   },
+      { id: crypto.randomUUID(), description: 'Allow DNS (TCP)', action: 'allow', protocol: 'tcp', src: 'any', dst: 'any', ports: '53'   },
+      { id: crypto.randomUUID(), description: 'Allow Dev ports', action: 'allow', protocol: 'tcp', src: 'any', dst: 'any', ports: '3000,4000,5000,8080,8443' },
+      { id: crypto.randomUUID(), description: 'Allow Ping',      action: 'allow', protocol: 'icmp', src: 'any', dst: 'any', ports: ''   },
+    ],
+  },
+};
+
+async function loadGatekeep() {
+  const networkId = document.getElementById('gatekeep-network-select')?.value;
+  const content = document.getElementById('gatekeep-content');
+  const empty = document.getElementById('gatekeep-empty');
+  if (!networkId) {
+    content.style.display = 'none';
+    empty.style.display = '';
+    return;
+  }
+  content.style.display = '';
+  empty.style.display = 'none';
+  gkDirty = false;
+  document.getElementById('gk-save-bar').style.display = 'none';
+  document.getElementById('gk-add-form').style.display = 'none';
+  document.getElementById('gk-json-panel').style.display = 'none';
+  try {
+    const data = await api('GET', `/v1/networks/${networkId}/gatekeep`);
+    if (!data) return;
+    gkPolicy = data.policy;
+    gkCallerRole = data.caller_role;
+    gkRender();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+function gkMarkDirty() {
+  gkDirty = true;
+  document.getElementById('gk-save-bar').style.display = 'flex';
+}
+
+function gkRender() {
+  const canEdit = gkCallerRole === 'owner' || gkCallerRole === 'admin';
+
+  // Default action toggle
+  document.querySelectorAll('.gk-default-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.action === gkPolicy.default_action);
+    btn.disabled = !canEdit;
+  });
+  // Presets / add button
+  document.getElementById('gk-presets').style.opacity = canEdit ? '1' : '0.4';
+  document.querySelectorAll('.gk-preset-btn').forEach(b => b.disabled = !canEdit);
+  document.getElementById('gk-add-btn').style.display = canEdit ? '' : 'none';
+  // Readonly indicator
+  document.getElementById('gk-readonly-badge').style.display = canEdit ? 'none' : '';
+
+  gkRenderRules();
+  // Sync JSON editor if open
+  if (document.getElementById('gk-json-panel').style.display !== 'none') {
+    document.getElementById('gk-json-editor').value = JSON.stringify(gkPolicy, null, 2);
+  }
+}
+
+function gkRenderRules() {
+  const list = document.getElementById('gk-rules-list');
+  const empty = document.getElementById('gk-rules-empty');
+  const count = document.getElementById('gk-rule-count');
+  const rules = gkPolicy.rules || [];
+  const canEdit = gkCallerRole === 'owner' || gkCallerRole === 'admin';
+
+  count.textContent = rules.length ? `(${rules.length})` : '';
+  if (!rules.length) { list.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+
+  list.innerHTML = rules.map((r, i) => {
+    const portsDisplay = r.protocol === 'icmp' || !r.ports || r.ports === 'any'
+      ? '' : `:${esc(r.ports)}`;
+    return `
+      <div class="gk-rule-row">
+        <span class="gk-action ${r.action}">${r.action}</span>
+        <span class="gk-proto">${r.protocol.toUpperCase()}</span>
+        <span class="gk-endpoint"><span class="gk-ep-label">src</span>${esc(r.src||'any')}</span>
+        <span class="gk-arrow">→</span>
+        <span class="gk-endpoint"><span class="gk-ep-label">dst</span>${esc(r.dst||'any')}</span>
+        ${portsDisplay ? `<span class="gk-ports">${portsDisplay}</span>` : '<span style="color:var(--text-muted);font-size:.72rem;font-family:var(--font-mono)">—</span>'}
+        <span class="gk-desc">${esc(r.description||'')}</span>
+        ${canEdit ? `<button class="btn-copy" style="margin-left:auto;flex-shrink:0" onclick="gkRemoveRule(${i})" title="Remove">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M14 2L2 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>` : '<span style="margin-left:auto"></span>'}
+      </div>`;
+  }).join('');
+}
+
+function gkSetDefault(action) {
+  if (gkCallerRole !== 'owner' && gkCallerRole !== 'admin') return;
+  gkPolicy.default_action = action;
+  gkRender();
+  gkMarkDirty();
+}
+
+function gkApplyPreset(name) {
+  if (gkCallerRole !== 'owner' && gkCallerRole !== 'admin') return;
+  const preset = GK_PRESETS[name];
+  if (!preset) return;
+  // Give each rule a fresh id
+  gkPolicy = {
+    default_action: preset.default_action,
+    rules: preset.rules.map(r => ({ ...r, id: crypto.randomUUID() })),
+  };
+  gkRender();
+  gkMarkDirty();
+}
+
+function gkProtoChange() {
+  const proto = document.getElementById('gk-new-proto').value;
+  document.getElementById('gk-ports-wrap').style.opacity = proto === 'icmp' ? '0.4' : '1';
+  if (proto === 'icmp') document.getElementById('gk-new-ports').value = '';
+}
+
+function gkToggleAddForm() {
+  const form = document.getElementById('gk-add-form');
+  form.style.display = form.style.display === 'none' ? '' : 'none';
+  if (form.style.display !== 'none') {
+    // Reset fields
+    document.getElementById('gk-new-action').value = 'allow';
+    document.getElementById('gk-new-proto').value = 'tcp';
+    document.getElementById('gk-new-src').value = '';
+    document.getElementById('gk-new-dst').value = '';
+    document.getElementById('gk-new-ports').value = '';
+    document.getElementById('gk-new-desc').value = '';
+    document.getElementById('gk-ports-wrap').style.opacity = '1';
+  }
+}
+
+function gkAddRule() {
+  const proto = document.getElementById('gk-new-proto').value;
+  const rule = {
+    id: crypto.randomUUID(),
+    action: document.getElementById('gk-new-action').value,
+    protocol: proto,
+    src: document.getElementById('gk-new-src').value.trim() || 'any',
+    dst: document.getElementById('gk-new-dst').value.trim() || 'any',
+    ports: proto === 'icmp' ? '' : (document.getElementById('gk-new-ports').value.trim() || 'any'),
+    description: document.getElementById('gk-new-desc').value.trim(),
+  };
+  gkPolicy.rules = [...(gkPolicy.rules || []), rule];
+  gkToggleAddForm();
+  gkRenderRules();
+  gkMarkDirty();
+}
+
+function gkRemoveRule(index) {
+  gkPolicy.rules = gkPolicy.rules.filter((_, i) => i !== index);
+  gkRenderRules();
+  gkMarkDirty();
+}
+
+function gkToggleJson() {
+  const panel = document.getElementById('gk-json-panel');
+  if (panel.style.display === 'none') {
+    panel.style.display = '';
+    document.getElementById('gk-json-editor').value = JSON.stringify(gkPolicy, null, 2);
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function gkApplyJson() {
+  try {
+    const parsed = JSON.parse(document.getElementById('gk-json-editor').value);
+    if (!['allow','block'].includes(parsed.default_action)) throw new Error('default_action must be "allow" or "block"');
+    if (!Array.isArray(parsed.rules)) throw new Error('rules must be an array');
+    gkPolicy = parsed;
+    gkRender();
+    gkMarkDirty();
+    toast('JSON applied', 'success');
+  } catch (e) { toast('Invalid JSON: ' + e.message, 'error'); }
+}
+
+async function gkSave() {
+  const networkId = document.getElementById('gatekeep-network-select')?.value;
+  if (!networkId) return;
+  try {
+    await api('PUT', `/v1/networks/${networkId}/gatekeep`, gkPolicy);
+    gkDirty = false;
+    document.getElementById('gk-save-bar').style.display = 'none';
+    toast('Policy saved', 'success');
   } catch (err) { toast(err.message, 'error'); }
 }
 

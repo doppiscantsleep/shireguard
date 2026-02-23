@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shireguard Docs</title>
+<script>(function(){var t=localStorage.getItem('sg_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})()</script>
+<link rel="icon" type="image/jpeg" href="/favicon.jpeg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Lora:ital,wght@0,600;0,700;1,600&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg-root:#0c1508;
+  --bg-surface:#111c0e;
+  --bg-elevated:#182913;
+  --border:#283d18;
+  --border-focus:#6db33a;
+  --text-primary:#e8dfbe;
+  --text-secondary:#8ca86d;
+  --text-muted:#4e6b38;
+  --accent:#7dc142;
+  --accent-dim:rgba(125,193,66,.13);
+  --amber:#d4a520;
+  --amber-dim:rgba(212,165,32,.13);
+  --red:#e05252;
+  --red-dim:rgba(224,82,82,.13);
+  --green:#5cb85c;
+  --green-dim:rgba(92,184,92,.13);
+  --blue:#5b8dd9;
+  --blue-dim:rgba(91,141,217,.13);
+  --bg-surface-rgb:17,28,14;
+  --sidebar-w:220px;
+  --font-mono:'IBM Plex Mono',monospace;
+  --font-sans:'Nunito',system-ui,sans-serif;
+  --font-display:'Lora',Georgia,serif;
+  --radius:3px;
+}
+[data-theme="light"]{
+  --bg-root:#f0e8cc;
+  --bg-surface:#f8f2e0;
+  --bg-surface-rgb:248,242,224;
+  --bg-elevated:#ece2c5;
+  --border:#c8b47a;
+  --border-focus:#3d6b1f;
+  --text-primary:#261a08;
+  --text-secondary:#6b4c20;
+  --text-muted:#9a7a40;
+  --accent:#3d6b1f;
+  --accent-dim:rgba(61,107,31,.1);
+  --amber:#8a6800;
+  --amber-dim:rgba(138,104,0,.1);
+  --red:#8b1a1a;
+  --red-dim:rgba(139,26,26,.08);
+  --green:#2a6b2a;
+  --green-dim:rgba(42,107,42,.1);
+  --blue:#1a4a7a;
+  --blue-dim:rgba(26,74,122,.08);
+}
+[data-theme="dwarf"]{
+  --bg-root:#0c0907;
+  --bg-surface:#181008;
+  --bg-surface-rgb:24,16,8;
+  --bg-elevated:#211508;
+  --border:#3d2010;
+  --border-focus:#b86010;
+  --text-primary:#dca840;
+  --text-secondary:#906828;
+  --text-muted:#583818;
+  --accent:#c06410;
+  --accent-dim:rgba(192,100,16,.15);
+  --amber:#e08818;
+  --amber-dim:rgba(224,136,24,.15);
+  --red:#c02818;
+  --red-dim:rgba(192,40,24,.13);
+  --green:#507038;
+  --green-dim:rgba(80,112,56,.13);
+  --blue:#485870;
+  --blue-dim:rgba(72,88,112,.13);
+}
+[data-theme="elven"]{
+  --bg-root:#050c14;
+  --bg-surface:#09141f;
+  --bg-surface-rgb:9,20,31;
+  --bg-elevated:#0d1c2a;
+  --border:#162c42;
+  --border-focus:#3e8ab0;
+  --text-primary:#b8d4e8;
+  --text-secondary:#5e8aaa;
+  --text-muted:#2c4c60;
+  --accent:#3e8ab0;
+  --accent-dim:rgba(62,138,176,.13);
+  --amber:#8ab0c8;
+  --amber-dim:rgba(138,176,200,.13);
+  --red:#8050a0;
+  --red-dim:rgba(128,80,160,.13);
+  --green:#3a8060;
+  --green-dim:rgba(58,128,96,.13);
+  --blue:#4878c0;
+  --blue-dim:rgba(72,120,192,.13);
+}
+
+html{font-size:14px;scroll-behavior:smooth}
+body{font-family:var(--font-sans);background:var(--bg-root);color:var(--text-primary);line-height:1.6;min-height:100vh}
+
+/* ── Top nav ── */
+.top-nav{
+  position:fixed;top:0;left:0;right:0;height:52px;z-index:100;
+  background:rgba(var(--bg-surface-rgb),.92);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;
+}
+.nav-logo{font-family:var(--font-display);font-size:1rem;font-weight:700;color:var(--accent);font-style:italic;text-decoration:none}
+.nav-logo span{color:var(--text-muted);font-weight:600;font-style:normal}
+.nav-right{display:flex;align-items:center;gap:.6rem}
+.btn-signin{
+  display:inline-flex;align-items:center;
+  padding:.3rem .85rem;font-family:var(--font-sans);font-size:.8rem;font-weight:700;
+  background:var(--accent);color:var(--bg-root);border:1px solid var(--accent);
+  border-radius:var(--radius);text-decoration:none;cursor:pointer;
+  transition:filter .15s;white-space:nowrap;letter-spacing:.01em;
+}
+.btn-signin:hover{filter:brightness(1.1)}
+.btn-theme{
+  background:none;border:1px solid var(--border);color:var(--text-secondary);
+  padding:.28rem .6rem;cursor:pointer;font-size:.72rem;font-weight:500;
+  font-family:var(--font-sans);border-radius:var(--radius);transition:all .15s;white-space:nowrap;
+}
+.btn-theme:hover{color:var(--text-primary);border-color:var(--text-muted)}
+
+/* ── Layout ── */
+.doc-layout{
+  display:flex;margin-top:52px;min-height:calc(100vh - 52px);
+}
+
+/* ── Sidebar ── */
+.doc-sidebar{
+  position:fixed;top:52px;left:0;bottom:0;
+  width:var(--sidebar-w);overflow-y:auto;
+  background:var(--bg-surface);border-right:1px solid var(--border);
+  padding:1.5rem 0 2rem;
+}
+.sidebar-section-label{
+  font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--text-muted);font-family:var(--font-mono);
+  padding:.65rem 1.25rem .3rem;
+}
+.sidebar-link{
+  display:block;padding:.32rem 1.25rem;font-size:.82rem;
+  color:var(--text-secondary);text-decoration:none;
+  transition:color .12s,background .12s;border-left:2px solid transparent;
+}
+.sidebar-link:hover{color:var(--text-primary);background:rgba(255,255,255,.03)}
+[data-theme="light"] .sidebar-link:hover{background:rgba(0,0,0,.04)}
+.sidebar-link.active{color:var(--accent);border-left-color:var(--accent);background:var(--accent-dim)}
+.sidebar-sub{padding-left:1.85rem;font-size:.78rem}
+
+/* ── Main content ── */
+.doc-main{
+  margin-left:var(--sidebar-w);flex:1;
+  padding:3rem 3rem 5rem;max-width:820px;
+}
+
+/* ── Typography ── */
+.doc-main h1{
+  font-family:var(--font-display);font-size:1.8rem;font-weight:700;
+  color:var(--accent);font-style:italic;margin-bottom:.4rem;letter-spacing:-.01em;
+}
+.doc-lead{color:var(--text-secondary);font-size:.92rem;margin-bottom:2.5rem;line-height:1.75}
+.doc-section{margin-bottom:3rem;scroll-margin-top:72px}
+.doc-section h2{
+  font-family:var(--font-display);font-size:1.15rem;font-weight:700;
+  color:var(--text-primary);font-style:italic;
+  border-bottom:1px solid var(--border);padding-bottom:.45rem;margin-bottom:1.1rem;
+}
+.doc-section h3{
+  font-size:.92rem;font-weight:700;color:var(--text-primary);
+  margin:1.25rem 0 .5rem;text-transform:uppercase;letter-spacing:.04em;
+  font-family:var(--font-mono);font-size:.78rem;
+}
+.doc-section p{
+  color:var(--text-secondary);font-size:.88rem;line-height:1.8;margin-bottom:.9rem;
+}
+.doc-section p:last-child{margin-bottom:0}
+.doc-section ul,.doc-section ol{
+  color:var(--text-secondary);font-size:.88rem;line-height:1.8;
+  margin-bottom:.9rem;padding-left:1.4rem;
+}
+.doc-section li{margin-bottom:.25rem}
+strong{color:var(--text-primary);font-weight:600}
+em{color:var(--text-secondary);font-style:italic}
+code{
+  font-family:var(--font-mono);font-size:.82rem;
+  background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:2px;padding:.05rem .35rem;color:var(--accent);
+}
+
+/* ── Code blocks ── */
+.code-block{
+  background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:var(--radius);padding:.65rem 1rem;margin:.6rem 0 1rem;
+  display:flex;align-items:flex-start;gap:.6rem;
+}
+.code-block pre{
+  flex:1;font-family:var(--font-mono);font-size:.8rem;
+  color:var(--accent);white-space:pre-wrap;word-break:break-all;margin:0;
+}
+.btn-copy{
+  flex-shrink:0;background:none;border:none;cursor:pointer;
+  color:var(--text-muted);padding:2px;transition:color .15s;line-height:0;margin-top:1px;
+}
+.btn-copy:hover{color:var(--text-primary)}
+.btn-copy.copied{color:var(--accent)}
+
+/* ── Note / callout ── */
+.note{
+  background:var(--accent-dim);border-left:3px solid var(--accent);
+  border-radius:0 var(--radius) var(--radius) 0;
+  padding:.65rem 1rem;font-size:.84rem;color:var(--text-secondary);
+  line-height:1.7;margin:.75rem 0;
+}
+.note.amber{background:var(--amber-dim);border-left-color:var(--amber)}
+.note.blue{background:var(--blue-dim);border-left-color:var(--blue)}
+
+/* ── Flow diagram ── */
+.flow{
+  display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;
+  padding:.75rem 1rem;background:var(--bg-elevated);
+  border:1px solid var(--border);border-radius:var(--radius);
+  margin:.75rem 0;font-size:.75rem;
+}
+.flow-box{
+  font-family:var(--font-mono);font-size:.72rem;
+  background:var(--bg-surface);border:1px solid var(--border);
+  border-radius:2px;padding:.2rem .5rem;color:var(--text-primary);white-space:nowrap;
+}
+.flow-box.a{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.flow-box.b{border-color:var(--blue);color:var(--blue);background:var(--blue-dim)}
+.flow-box.c{border-color:var(--amber);color:var(--amber);background:var(--amber-dim)}
+.flow-arrow{color:var(--text-muted);font-size:.9rem;flex-shrink:0}
+
+/* ── Role table ── */
+.role-table{width:100%;border-collapse:collapse;font-size:.84rem;margin:.75rem 0}
+.role-table th{
+  text-align:left;padding:.45rem .75rem;font-size:.68rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);
+  border-bottom:1px solid var(--border);font-family:var(--font-mono);
+}
+.role-table td{
+  padding:.5rem .75rem;border-bottom:1px solid var(--border);
+  color:var(--text-secondary);vertical-align:top;
+}
+.role-table tr:last-child td{border-bottom:none}
+.role-table td:first-child{color:var(--text-primary);font-weight:600;white-space:nowrap}
+.tick{color:var(--green)}
+.cross{color:var(--text-muted)}
+
+/* ── Steps ── */
+.steps{display:flex;flex-direction:column;gap:.75rem;margin:.75rem 0}
+.step{display:flex;gap:.9rem;align-items:flex-start}
+.step-num{
+  flex-shrink:0;width:24px;height:24px;border-radius:50%;
+  background:var(--accent-dim);border:1px solid var(--accent);
+  color:var(--accent);font-family:var(--font-mono);font-size:.72rem;font-weight:600;
+  display:flex;align-items:center;justify-content:center;margin-top:.15rem;
+}
+.step-body{flex:1;font-size:.87rem;color:var(--text-secondary);line-height:1.7}
+.step-body strong{color:var(--text-primary)}
+
+/* ── Mobile ── */
+@media(max-width:720px){
+  .doc-sidebar{display:none}
+  .doc-main{margin-left:0;padding:2rem 1.25rem 4rem}
+}
+
+/* ── Mobile TOC (Fix 11) ── */
+.mobile-toc-btn{
+  display:none;position:sticky;top:52px;z-index:50;
+  background:var(--bg-surface);border:1px solid var(--border);
+  color:var(--text-secondary);padding:.5rem 1rem;font-size:.82rem;
+  font-family:var(--font-sans);font-weight:600;cursor:pointer;
+  border-radius:var(--radius);margin-bottom:1rem;width:100%;
+  text-align:left;transition:all .15s;
+}
+.mobile-toc-btn:hover{color:var(--text-primary);border-color:var(--text-muted)}
+.mobile-toc-btn::after{content:' \25BE';font-size:.7rem}
+.mobile-toc-btn.open::after{content:' \25B4'}
+@media(max-width:720px){.mobile-toc-btn{display:block}}
+
+.mobile-toc-panel{
+  display:none;background:var(--bg-surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:.5rem 0;margin-bottom:1rem;
+  max-height:60vh;overflow-y:auto;
+}
+.mobile-toc-panel.open{display:block}
+.mobile-toc-panel .sidebar-section-label{
+  font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--text-muted);font-family:var(--font-mono);
+  padding:.65rem 1.25rem .3rem;
+}
+.mobile-toc-panel .sidebar-link{
+  display:block;padding:.4rem 1.25rem;font-size:.84rem;
+  color:var(--text-secondary);text-decoration:none;
+  transition:color .12s,background .12s;
+}
+.mobile-toc-panel .sidebar-link:hover{color:var(--text-primary);background:rgba(255,255,255,.03)}
+[data-theme="light"] .mobile-toc-panel .sidebar-link:hover{background:rgba(0,0,0,.04)}
+
+.mobile-toc-backdrop{
+  position:fixed;inset:0;z-index:40;display:none;
+}
+.mobile-toc-backdrop.open{display:block}
+</style>
+</head>
+<body>
+
+<nav class="top-nav">
+  <a href="/" class="nav-logo">Shire<span>guard</span></a>
+  <div class="nav-right">
+    <button class="btn-theme" onclick="toggleTheme()"><span class="theme-name">Shire Dark</span></button>
+    <a href="/dashboard" class="btn-signin">Sign In</a>
+  </div>
+</nav>
+
+<div class="doc-layout">
+
+  <!-- Sidebar TOC -->
+  <aside class="doc-sidebar" id="doc-sidebar">
+    <div class="sidebar-section-label">Getting Started</div>
+    <a class="sidebar-link" href="#install">Installation</a>
+    <a class="sidebar-link" href="#signin">Sign In</a>
+    <a class="sidebar-link" href="#first-network">Create a Network</a>
+    <a class="sidebar-link" href="#connect">Connect a Device</a>
+
+    <div class="sidebar-section-label" style="margin-top:.75rem">Concepts</div>
+    <a class="sidebar-link" href="#networks">Networks</a>
+    <a class="sidebar-link" href="#devices">Devices</a>
+    <a class="sidebar-link" href="#members">Members &amp; Roles</a>
+    <a class="sidebar-link" href="#invites">Invite Links</a>
+
+    <div class="sidebar-section-label" style="margin-top:.75rem">How It Works</div>
+    <a class="sidebar-link" href="#wireguard">WireGuard</a>
+    <a class="sidebar-link" href="#stun">STUN &amp; NAT</a>
+    <a class="sidebar-link" href="#relay">Relay Fallback</a>
+    <a class="sidebar-link" href="#connection-flow">Connection Flow</a>
+  </aside>
+
+  <!-- Main content -->
+  <main class="doc-main">
+
+    <!-- Mobile TOC (Fix 11) -->
+    <button class="mobile-toc-btn" id="mobile-toc-btn" aria-expanded="false" aria-controls="mobile-toc-panel">Contents</button>
+    <div class="mobile-toc-backdrop" id="mobile-toc-backdrop"></div>
+    <nav class="mobile-toc-panel" id="mobile-toc-panel" role="navigation" aria-label="Table of contents">
+      <div class="sidebar-section-label">Getting Started</div>
+      <a class="sidebar-link" href="#install" data-toc>Installation</a>
+      <a class="sidebar-link" href="#signin" data-toc>Sign In</a>
+      <a class="sidebar-link" href="#first-network" data-toc>Create a Network</a>
+      <a class="sidebar-link" href="#connect" data-toc>Connect a Device</a>
+      <div class="sidebar-section-label" style="margin-top:.5rem">Concepts</div>
+      <a class="sidebar-link" href="#networks" data-toc>Networks</a>
+      <a class="sidebar-link" href="#devices" data-toc>Devices</a>
+      <a class="sidebar-link" href="#members" data-toc>Members &amp; Roles</a>
+      <a class="sidebar-link" href="#invites" data-toc>Invite Links</a>
+      <div class="sidebar-section-label" style="margin-top:.5rem">How It Works</div>
+      <a class="sidebar-link" href="#wireguard" data-toc>WireGuard</a>
+      <a class="sidebar-link" href="#stun" data-toc>STUN &amp; NAT</a>
+      <a class="sidebar-link" href="#relay" data-toc>Relay Fallback</a>
+      <a class="sidebar-link" href="#connection-flow" data-toc>Connection Flow</a>
+    </nav>
+
+    <h1>Documentation</h1>
+    <p class="doc-lead">Shireguard builds private WireGuard mesh networks. Each device gets a stable private IP, peers connect directly when they can, and fall back to an encrypted relay when they can't.</p>
+
+    <!-- ══ GETTING STARTED ══ -->
+
+    <div class="doc-section" id="install">
+      <h2>Installation</h2>
+      <p>Shireguard runs on <strong>macOS</strong> and <strong>Linux</strong>. The daemon manages the WireGuard interface; the menu bar app (macOS) gives you one-click connect/disconnect.</p>
+
+      <h3>macOS (Homebrew)</h3>
+      <div class="code-block"><pre>brew install doppiscantsleep/shireguard/shireguard</pre><button class="btn-copy" onclick="copy(this)" title="Copy"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button></div>
+
+      <h3>Linux (curl installer)</h3>
+      <div class="code-block"><pre>curl -sSL https://shireguard.com/install.sh | bash</pre><button class="btn-copy" onclick="copy(this)" title="Copy"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button></div>
+
+      <p>After installation the <code>shireguard</code> binary is on your PATH. No kernel modules, no root required at runtime — WireGuard runs entirely in userspace.</p>
+    </div>
+
+    <div class="doc-section" id="signin">
+      <h2>Sign In</h2>
+      <p>Sign in with Apple, Google, or GitHub. The CLI opens a browser window for OAuth and polls for the token — no local callback server needed.</p>
+      <div class="code-block"><pre>shireguard login</pre><button class="btn-copy" onclick="copy(this)" title="Copy"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button></div>
+      <p>This saves a session token in <code>~/.shireguard/config.json</code>. You can also sign in via the web dashboard at <strong>shireguard.com</strong>.</p>
+    </div>
+
+    <div class="doc-section" id="first-network">
+      <h2>Create a Network</h2>
+      <p>A <strong>shirenet</strong> is a private network with its own CIDR block. Every device that joins gets a stable IP in that range.</p>
+      <div class="code-block"><pre>shireguard networks create --name "homelab"</pre><button class="btn-copy" onclick="copy(this)" title="Copy"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg></button></div>
+      <p>The default CIDR is <code>100.65.0.0/16</code>, giving up to 65 533 device addresses. You can specify a custom CIDR with <code>--cidr</code>. You can also create networks from the dashboard.</p>
+    </div>
+
+    <div class="doc-section" id="connect">
+      <h2>Connect a Device</h2>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Register the device</strong> — generates a WireGuard key pair, registers the public key with the control plane, and receives an assigned IP.<br><code style="display:inline-block;margin-top:.3rem">shireguard up --network homelab</code></div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><strong>The daemon starts</strong> and brings up a WireGuard interface (e.g. <code>utun8</code> on macOS). It syncs peers from the control plane every 30 s.</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Peers appear automatically.</strong> Any other device connected to the same network will show up as a WireGuard peer. Connectivity is attempted directly first, with relay as fallback.</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Disconnect</strong> with <code>shireguard down</code>. The interface is torn down and the daemon exits.</div></div>
+      </div>
+      <div class="note amber">On macOS, the menu bar app handles connect/disconnect with a single click and shows your assigned IP inline.</div>
+    </div>
+
+    <!-- ══ CONCEPTS ══ -->
+
+    <div class="doc-section" id="networks">
+      <h2>Networks</h2>
+      <p>A <strong>network</strong> (shirenet) is the top-level grouping. It has:</p>
+      <ul>
+        <li>A <strong>name</strong> — human-readable label</li>
+        <li>A <strong>CIDR</strong> — the IP range for all devices in this network (default <code>100.65.0.0/16</code>)</li>
+        <li>An <strong>owner</strong> — the user who created it</li>
+        <li>Optional <strong>members</strong> — other users invited to join</li>
+      </ul>
+      <p>Devices in the same network can reach each other using their assigned private IPs. Traffic never leaves the WireGuard tunnel — the control plane only stores public keys and endpoint hints; it never sees packet contents.</p>
+      <p>You can have multiple networks — for example, <em>homelab</em>, <em>team-dev</em>, and <em>offsite-backup</em> can all coexist independently.</p>
+    </div>
+
+    <div class="doc-section" id="devices">
+      <h2>Devices</h2>
+      <p>A <strong>device</strong> is any machine running the Shireguard daemon. Each device has:</p>
+      <ul>
+        <li>A <strong>WireGuard key pair</strong> — generated locally, private key never leaves the device</li>
+        <li>An <strong>assigned IP</strong> — stable address within the network CIDR, allocated by the control plane</li>
+        <li>A <strong>platform</strong> — <code>macos</code>, <code>linux</code>, or <code>raspberrypi</code></li>
+        <li>An <strong>endpoint</strong> — the last-known public IP:port, updated by heartbeat every 30 s</li>
+        <li>A <strong>relay slot</strong> — optional relay host and port used as fallback when direct connection fails</li>
+      </ul>
+      <p>Multiple devices can be registered to the same network by the same user, or by different users who are members of that network. Each member's devices join the mesh as peers to everyone else in the network.</p>
+      <p>Devices are identified by their <strong>public key</strong>, which is globally unique. If you run <code>shireguard up</code> on a machine that already has a registered key, it reconnects to the existing device record.</p>
+    </div>
+
+    <div class="doc-section" id="members">
+      <h2>Members &amp; Roles</h2>
+      <p>Networks support three roles:</p>
+      <table class="role-table">
+        <thead><tr><th>Role</th><th>Who</th><th>Capabilities</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Owner</td>
+            <td>The user who created the network</td>
+            <td>Full control: invite, remove anyone, change roles, delete network</td>
+          </tr>
+          <tr>
+            <td>Admin</td>
+            <td>Elevated member, promoted by owner</td>
+            <td>Generate invite links (member-only), remove members, view member list</td>
+          </tr>
+          <tr>
+            <td>Member</td>
+            <td>Standard joined user</td>
+            <td>Register devices to the network, see peers, connect</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Role permissions matrix</h3>
+      <table class="role-table">
+        <thead><tr><th>Action</th><th>Owner</th><th>Admin</th><th>Member</th></tr></thead>
+        <tbody>
+          <tr><td>Register devices</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td></tr>
+          <tr><td>View peers</td><td class="tick">✓</td><td class="tick">✓</td><td class="tick">✓</td></tr>
+          <tr><td>View member list</td><td class="tick">✓</td><td class="tick">✓</td><td class="cross">–</td></tr>
+          <tr><td>Generate invite links</td><td class="tick">✓</td><td class="tick">✓</td><td class="cross">–</td></tr>
+          <tr><td>Invite as admin</td><td class="tick">✓</td><td class="cross">–</td><td class="cross">–</td></tr>
+          <tr><td>Remove members</td><td class="tick">✓</td><td class="tick">✓ (non-admins)</td><td class="cross">–</td></tr>
+          <tr><td>Change roles</td><td class="tick">✓</td><td class="cross">–</td><td class="cross">–</td></tr>
+          <tr><td>Delete network</td><td class="tick">✓</td><td class="cross">–</td><td class="cross">–</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="doc-section" id="invites">
+      <h2>Invite Links</h2>
+      <p>Owners and admins can generate shareable invite links from the dashboard. Each invite has:</p>
+      <ul>
+        <li><strong>Role</strong> — the role the invited user will receive (member or admin, owner-only)</li>
+        <li><strong>Max uses</strong> — how many people can claim the invite (1, 5, 10, or unlimited)</li>
+        <li><strong>Expiry</strong> — 24 h, 7 days, or 30 days</li>
+      </ul>
+      <p>An invite link looks like: <code>https://shireguard.com/?invite=&lt;token&gt;</code></p>
+      <p>When someone clicks the link they land on the Shireguard home page. The token is saved to <code>sessionStorage</code> so it survives the OAuth redirect. After they sign in, the invite is automatically accepted and they join the network with the specified role. If they were already a member, the accept is a no-op.</p>
+      <p>Invites can be revoked at any time from the dashboard. Expired or fully-used invites are automatically ignored.</p>
+    </div>
+
+    <!-- ══ HOW IT WORKS ══ -->
+
+    <div class="doc-section" id="wireguard">
+      <h2>WireGuard</h2>
+      <p><strong>WireGuard</strong> is the VPN protocol underlying Shireguard. It uses modern cryptography — <strong>Curve25519</strong> for key exchange, <strong>ChaCha20-Poly1305</strong> for symmetric encryption, and <strong>BLAKE2s</strong> for hashing — with a deliberately minimal codebase (~4 000 lines vs. OpenVPN's ~100 000+).</p>
+      <p>Key properties relevant to Shireguard:</p>
+      <ul>
+        <li><strong>Identity = public key.</strong> Each peer is identified by its 32-byte public key. The control plane stores these and distributes them to every device in the network.</li>
+        <li><strong>Roaming.</strong> WireGuard peers track each other's endpoints and update automatically when an IP or port changes — useful when devices move between networks.</li>
+        <li><strong>Userspace.</strong> Shireguard uses <em>wireguard-go</em>, a pure-Go implementation that runs without kernel modules. This means it works on any macOS or Linux without elevated privileges at runtime (only initial setup requires brief sudo for the <code>utun</code> interface).</li>
+        <li><strong>Silence.</strong> WireGuard only sends traffic when there is data to send. Peers that aren't communicating generate no keepalive load — Shireguard adds its own lightweight keepalive just to maintain NAT mappings.</li>
+      </ul>
+    </div>
+
+    <div class="doc-section" id="stun">
+      <h2>STUN &amp; NAT</h2>
+      <p>Most devices sit behind a <strong>NAT</strong> (Network Address Translator) — a router that maps many private IPs to one public IP. The problem: two NATted devices can't connect directly because neither knows the other's real public endpoint.</p>
+
+      <h3>What STUN does</h3>
+      <p><strong>STUN</strong> (Session Traversal Utilities for NAT) is a protocol that lets a device discover its own public IP and port as seen by the outside world. Shireguard queries a STUN server (Google's <code>stun.l.google.com:19302</code> with Cloudflare as fallback) during startup to learn its external endpoint, then registers that endpoint with the control plane.</p>
+
+      <div class="flow">
+        <div class="flow-box a">Your device</div>
+        <div class="flow-arrow">→ STUN query →</div>
+        <div class="flow-box c">STUN server</div>
+        <div class="flow-arrow">← your public IP:port ←</div>
+        <div class="flow-box a">Your device</div>
+        <div class="flow-arrow">→ register →</div>
+        <div class="flow-box b">Control plane</div>
+      </div>
+
+      <h3>NAT types</h3>
+      <p>Not all NATs behave the same:</p>
+      <ul>
+        <li><strong>Full-cone / port-restricted NAT</strong> — most home routers. Two devices can hole-punch: both send a UDP packet to each other's public endpoint simultaneously, which opens a path through each router. WireGuard then flows directly peer-to-peer.</li>
+        <li><strong>Symmetric NAT</strong> — common on corporate networks and some mobile carriers. The NAT assigns a <em>different</em> external port for every destination, so hole-punching fails. The relay takes over in this case.</li>
+      </ul>
+      <div class="note blue">Shireguard attempts direct connection first. If no handshake completes within ~15 seconds, it falls back to the relay automatically — no manual configuration needed.</div>
+    </div>
+
+    <div class="doc-section" id="relay">
+      <h2>Relay Fallback</h2>
+      <p>When two devices can't punch through their NATs, Shireguard uses a <strong>UDP relay</strong> running on a public server (AWS Lightsail). The relay is dumb on purpose — it doesn't terminate TLS or decrypt anything. It just forwards UDP packets between two registered slots.</p>
+
+      <h3>How the relay works</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Registration.</strong> Each device's daemon registers with the relay over HTTP (<code>:8080</code>), claiming a slot and providing its desired WireGuard port.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Local proxy.</strong> The daemon starts a local UDP proxy on a random port. WireGuard's outbound traffic is routed through this proxy, which maintains a single persistent UDP socket to the relay.</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Keepalives.</strong> The proxy sends a lightweight keepalive UDP packet to the relay every few seconds. This keeps the NAT mapping alive — the relay learns the device's current public IP:port from the source address of these packets.</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Forwarding.</strong> When device A sends WireGuard traffic, the relay looks up device B's registered endpoint and forwards the packet. B's relay proxy receives it and injects it into B's local WireGuard interface. B's reply takes the same path back.</div></div>
+      </div>
+
+      <div class="note">WireGuard's encryption is end-to-end. The relay server sees only ciphertext — it has no keys and cannot read or modify packet contents.</div>
+
+      <h3>Reconnection &amp; backoff</h3>
+      <p>If the relay proxy dies (network change, server restart), the daemon detects it and attempts reconnection with exponential backoff: 5 s → 10 s → 20 s. After three failures it clears the relay fallback and logs a warning. If direct connectivity has since become possible, WireGuard will use it instead.</p>
+    </div>
+
+    <div class="doc-section" id="connection-flow">
+      <h2>Full Connection Flow</h2>
+      <p>Here's what happens end-to-end when you run <code>shireguard up</code>:</p>
+
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Key generation.</strong> A WireGuard key pair is generated locally if one doesn't exist. Private key stays on device.</div></div>
+        <div class="step"><div class="step-num">2</div><div class="step-body"><strong>STUN probe.</strong> The daemon queries a STUN server to discover its public endpoint.</div></div>
+        <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Registration.</strong> Public key + STUN endpoint sent to the control plane. An assigned IP in the network CIDR is returned.</div></div>
+        <div class="step"><div class="step-num">4</div><div class="step-body"><strong>Relay setup.</strong> Daemon registers a relay slot. Starts the local UDP proxy and begins sending keepalives.</div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-body"><strong>Interface up.</strong> WireGuard <code>utun</code> interface created with the assigned IP. Peer list populated from the control plane.</div></div>
+        <div class="step"><div class="step-num">6</div><div class="step-body"><strong>Peer sync.</strong> Every 30 s the daemon polls <code>/v1/networks/:id/peers</code> and updates WireGuard's peer list. New devices appear automatically; departed devices are removed.</div></div>
+        <div class="step"><div class="step-num">7</div><div class="step-body"><strong>Heartbeat.</strong> Every 30 s the daemon posts its current endpoint to the control plane so peers can find it. Interval doubles on failure, capped at 5 min, resets on success.</div></div>
+        <div class="step"><div class="step-num">8</div><div class="step-body"><strong>Connection attempt.</strong> WireGuard tries a handshake with each peer using the direct endpoint first. If that fails, the peer's relay host:port is set as the endpoint and WireGuard retries through the relay.</div></div>
+      </div>
+
+      <div class="flow" style="margin-top:1rem">
+        <div class="flow-box a">Device A</div>
+        <div class="flow-arrow">↔ direct (preferred)</div>
+        <div class="flow-box a">Device B</div>
+      </div>
+      <div class="flow">
+        <div class="flow-box a">Device A</div>
+        <div class="flow-arrow">→ proxy →</div>
+        <div class="flow-box c">Relay</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box a">Device B</div>
+        <div class="flow-arrow" style="font-size:.72rem;color:var(--text-muted)">(fallback, still E2E encrypted)</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ── Theme ──
+const themeOrder = ['dark', 'dwarf', 'elven', 'light'];
+const themeLabels = { dark: 'Shire Dark', light: 'Shire Light', dwarf: 'Dwarven Mount', elven: 'Elven River' };
+function toggleTheme() {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme') || 'dark';
+  const next = themeOrder[(themeOrder.indexOf(current) + 1) % themeOrder.length];
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('sg_theme', next);
+  updateThemeLabels();
+}
+function updateThemeLabels() {
+  const t = document.documentElement.getAttribute('data-theme') || 'dark';
+  document.querySelectorAll('.theme-name').forEach(el => el.textContent = themeLabels[t] || t);
+}
+updateThemeLabels();
+
+// ── Copy buttons ──
+function copy(btn) {
+  const text = btn.previousElementSibling.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.classList.add('copied');
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 8l4 4 8-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 11H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.3"/></svg>';
+    }, 1500);
+  });
+}
+
+// ── Active sidebar link on scroll ──
+const sections = document.querySelectorAll('.doc-section[id]');
+const links = document.querySelectorAll('.sidebar-link');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector(`.sidebar-link[href="#${entry.target.id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+sections.forEach(s => observer.observe(s));
+
+// ── Mobile TOC (Fix 11) ──
+(function() {
+  const btn = document.getElementById('mobile-toc-btn');
+  const panel = document.getElementById('mobile-toc-panel');
+  const backdrop = document.getElementById('mobile-toc-backdrop');
+  if (!btn || !panel) return;
+
+  function closeToc() {
+    panel.classList.remove('open');
+    btn.classList.remove('open');
+    backdrop.classList.remove('open');
+    btn.setAttribute('aria-expanded', 'false');
+  }
+  function toggleToc() {
+    const isOpen = panel.classList.toggle('open');
+    btn.classList.toggle('open', isOpen);
+    backdrop.classList.toggle('open', isOpen);
+    btn.setAttribute('aria-expanded', String(isOpen));
+  }
+
+  btn.addEventListener('click', toggleToc);
+  backdrop.addEventListener('click', closeToc);
+
+  panel.querySelectorAll('[data-toc]').forEach(link => {
+    link.addEventListener('click', () => { closeToc(); });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && panel.classList.contains('open')) closeToc();
+  });
+})();
+</script>
+</body>
+</html>

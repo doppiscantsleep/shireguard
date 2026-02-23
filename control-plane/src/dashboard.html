@@ -511,6 +511,59 @@ body{
   .stat-grid{grid-template-columns:repeat(2,1fr)}
 }
 
+/* ── Sidebar Overlay (Fix 13) ── */
+.sidebar-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:94;
+  opacity:0;pointer-events:none;transition:opacity .15s;
+}
+.sidebar-overlay.visible{opacity:1;pointer-events:auto}
+
+/* ── Confirm Modal (Fix 9) ── */
+.confirm-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);
+  display:none;align-items:center;justify-content:center;
+  z-index:1100;backdrop-filter:blur(3px);
+}
+[data-theme="light"] .confirm-overlay{background:rgba(0,0,0,.35)}
+.confirm-overlay.open{display:flex}
+.confirm-modal{
+  background:var(--bg-elevated);border:1px solid var(--border);
+  width:100%;max-width:400px;border-radius:var(--radius);
+}
+.confirm-modal-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border)}
+.confirm-modal-title{font-size:1rem;font-weight:700;font-family:var(--font-display);color:var(--text-primary)}
+.confirm-modal-body{padding:1rem 1.25rem;font-size:.85rem;color:var(--text-secondary);line-height:1.6}
+.confirm-modal-footer{
+  padding:.85rem 1.25rem;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:.5rem;
+}
+
+/* ── Auto-refresh timestamp (Fix 12) ── */
+.last-updated{font-size:.72rem;color:var(--text-muted);font-family:var(--font-mono);margin-top:.15rem}
+
+/* ── Mobile Card Layout (Fix 10) ── */
+@media(max-width:540px){
+  .data-table thead{display:none}
+  .data-table tbody{display:flex;flex-direction:column;gap:.5rem;padding:.5rem}
+  .data-table tbody tr{
+    display:flex;flex-direction:column;
+    background:var(--bg-surface);border:1px solid var(--border);
+    border-radius:var(--radius);padding:.75rem 1rem;
+  }
+  .data-table tbody tr:hover td{background:transparent}
+  .data-table tbody td{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:.25rem 0;border-bottom:1px solid var(--border);font-size:.82rem;
+  }
+  .data-table tbody td:last-child{border-bottom:none}
+  .data-table tbody td::before{
+    content:attr(data-label);font-size:.68rem;font-weight:700;
+    text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);
+    font-family:var(--font-mono);flex-shrink:0;margin-right:.75rem;
+  }
+  .data-table tbody td:last-child::before{content:none}
+}
+
 /* ── Select ── */
 .form-select{
   width:100%;padding:.6rem .75rem;
@@ -964,7 +1017,7 @@ body{
     <div class="auth-footer">
       <p class="auth-footer-desc">Shireguard creates encrypted WireGuard tunnels between your devices — direct, peer-to-peer, with no traffic passing through any cloud.</p>
       <div class="auth-footer-links">
-        <a href="/?page=tech" class="auth-footer-link" onclick="event.preventDefault();showAppAndNavigate('tech')">
+        <a href="/docs" class="auth-footer-link">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="13" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
           How It Works
         </a>
@@ -983,13 +1036,13 @@ body{
 <div id="app-screen">
   <header class="app-header">
     <div class="header-left">
-      <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+      <button class="mobile-toggle" onclick="openSidebar()">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5"/></svg>
       </button>
       <div class="header-logo">shireguard</div>
     </div>
     <div class="header-right">
-      <span class="header-email" id="user-email"></span>
+      <span class="header-email" id="user-email" style="display:none"></span>
       <a href="/docs" target="_blank" class="btn-logout" style="text-decoration:none">docs</a>
       <button class="btn-theme-toggle" onclick="toggleTheme()" title="Switch theme"><span class="theme-name">Shire Dark</span></button>
       <button class="btn-logout" onclick="logout()">logout</button>
@@ -1177,6 +1230,7 @@ body{
         <div>
           <div class="page-title">Devices</div>
           <div class="page-desc">Manage registered devices in your network</div>
+          <div class="last-updated" id="devices-last-updated"></div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="openModal('add-device')">+ Add Device</button>
       </div>
@@ -1200,6 +1254,7 @@ body{
         <div>
           <div class="page-title">Networks</div>
           <div class="page-desc">Virtual networks connecting your devices</div>
+          <div class="last-updated" id="networks-last-updated"></div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="openModal('add-network')">+ New Network</button>
       </div>
@@ -2349,6 +2404,23 @@ body{
   </div>
 </div>
 
+<!-- Sidebar overlay (Fix 13) -->
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<!-- Confirm modal (Fix 9) -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-modal">
+    <div class="confirm-modal-header">
+      <div class="confirm-modal-title" id="confirm-title"></div>
+    </div>
+    <div class="confirm-modal-body" id="confirm-message"></div>
+    <div class="confirm-modal-footer">
+      <button class="btn btn-secondary btn-sm" id="confirm-cancel-btn">Cancel</button>
+      <button class="btn btn-danger btn-sm" id="confirm-ok-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-container" id="toasts"></div>
 
 <script>
@@ -2396,6 +2468,7 @@ function showInitialScreen() {
     if (ok) {
       document.getElementById('loading-screen').style.display = 'none';
       document.getElementById('user-email').textContent = userEmail;
+    document.getElementById('user-email').style.display = userEmail ? '' : 'none';
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('app-screen').style.display = 'block';
       document.querySelector('.btn-theme-float').style.display = 'none';
@@ -2499,6 +2572,7 @@ function handleAuth(data) {
   localStorage.setItem('sg_session_rt', refreshToken);
   localStorage.setItem('sg_session_email', userEmail);
   document.getElementById('user-email').textContent = userEmail;
+    document.getElementById('user-email').style.display = userEmail ? '' : 'none';
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('app-screen').style.display = 'block';
   document.querySelector('.btn-theme-float').style.display = 'none';
@@ -2523,6 +2597,7 @@ async function checkPendingInvite() {
 }
 
 function logout() {
+  stopAutoRefresh();
   accessToken = null;
   refreshToken = null;
   userEmail = null;
@@ -2534,21 +2609,29 @@ function logout() {
 }
 
 // ── Navigation ──
+const validPages = ['setup','devices','networks','users','gatekeep','metrics','account','apikeys','tech','about'];
+
 document.querySelectorAll('.nav-item[data-page]').forEach(item => {
   item.addEventListener('click', () => {
     navigateTo(item.dataset.page);
-    document.querySelector('.sidebar').classList.remove('open');
+    closeSidebar();
   });
 });
 
 function navigateTo(page) {
+  stopAutoRefresh();
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');
+  const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (navBtn) navBtn.classList.add('active');
   document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
   document.getElementById(`page-${page}`).style.display = '';
-  if (page === 'devices') loadDevices();
-  if (page === 'networks') loadNetworks();
+  // Update hash without triggering popstate
+  if (window.location.hash !== '#' + page) {
+    history.pushState(null, '', '#' + page);
+  }
+  if (page === 'devices') { loadDevices(); startAutoRefresh(loadDevices, 45000, 'devices-last-updated'); }
+  if (page === 'networks') { loadNetworks(); startAutoRefresh(loadNetworks, 45000, 'networks-last-updated'); }
   if (page === 'users') loadUsers();
   if (page === 'gatekeep') loadGatekeep();
   if (page === 'metrics') loadMetricsSummary();
@@ -2557,10 +2640,101 @@ function navigateTo(page) {
   // 'tech' and 'about' are static — no fetch needed
 }
 
+// Hash-based routing (Fix 7)
+function navigateFromHash() {
+  const hash = window.location.hash.replace('#', '');
+  if (hash && validPages.includes(hash)) {
+    navigateTo(hash);
+  }
+}
+window.addEventListener('popstate', () => {
+  if (document.getElementById('app-screen').style.display !== 'none') {
+    navigateFromHash();
+  }
+});
+
+// ── Auto-refresh (Fix 12) ──
+let _autoRefreshInterval = null;
+let _autoRefreshTickInterval = null;
+let _autoRefreshLastTime = null;
+let _autoRefreshTimestampEl = null;
+
+function startAutoRefresh(fn, intervalMs, timestampElId) {
+  stopAutoRefresh();
+  _autoRefreshLastTime = Date.now();
+  _autoRefreshTimestampEl = document.getElementById(timestampElId);
+  updateLastUpdatedDisplay();
+  _autoRefreshInterval = setInterval(() => {
+    fn();
+    _autoRefreshLastTime = Date.now();
+  }, intervalMs);
+  _autoRefreshTickInterval = setInterval(updateLastUpdatedDisplay, 1000);
+}
+
+function stopAutoRefresh() {
+  if (_autoRefreshInterval) { clearInterval(_autoRefreshInterval); _autoRefreshInterval = null; }
+  if (_autoRefreshTickInterval) { clearInterval(_autoRefreshTickInterval); _autoRefreshTickInterval = null; }
+  // Clear both timestamp elements
+  const de = document.getElementById('devices-last-updated');
+  const ne = document.getElementById('networks-last-updated');
+  if (de) de.textContent = '';
+  if (ne) ne.textContent = '';
+  _autoRefreshTimestampEl = null;
+}
+
+function updateLastUpdatedDisplay() {
+  if (!_autoRefreshTimestampEl || !_autoRefreshLastTime) return;
+  const secs = Math.floor((Date.now() - _autoRefreshLastTime) / 1000);
+  _autoRefreshTimestampEl.textContent = secs < 5 ? 'updated just now' : `updated ${secs}s ago`;
+}
+
+// ── Confirm Modal (Fix 9) ──
+let _confirmCallback = null;
+
+function showConfirm(title, message, onConfirm) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-message').textContent = message;
+  _confirmCallback = onConfirm;
+  document.getElementById('confirm-overlay').classList.add('open');
+  document.getElementById('confirm-cancel-btn').focus();
+}
+
+document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+  document.getElementById('confirm-overlay').classList.remove('open');
+  if (_confirmCallback) { _confirmCallback(); _confirmCallback = null; }
+});
+document.getElementById('confirm-cancel-btn').addEventListener('click', () => {
+  document.getElementById('confirm-overlay').classList.remove('open');
+  _confirmCallback = null;
+});
+document.getElementById('confirm-overlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) {
+    e.currentTarget.classList.remove('open');
+    _confirmCallback = null;
+  }
+});
+
+// ── Sidebar Overlay (Fix 13) ──
+function openSidebar() {
+  document.querySelector('.sidebar').classList.add('open');
+  document.getElementById('sidebar-overlay').classList.add('visible');
+}
+function closeSidebar() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('visible');
+}
+document.getElementById('sidebar-overlay').addEventListener('click', closeSidebar);
+
 // ── Load All ──
 async function loadAll() {
   await loadNetworksList();
-  loadDevices();
+  // Hash-based routing: navigate to hash page if present, otherwise default to devices
+  const hash = window.location.hash.replace('#', '');
+  if (hash && validPages.includes(hash)) {
+    navigateTo(hash);
+  } else {
+    navigateTo('devices');
+  }
 }
 
 async function loadNetworksList() {
@@ -2597,14 +2771,14 @@ async function loadDevices() {
     if (!devices.length) { tbody.innerHTML = ''; return; }
     tbody.innerHTML = devices.map(d => `
       <tr>
-        <td><strong>${esc(d.name)}</strong></td>
-        <td><span class="platform-badge">${esc(d.platform)}</span></td>
-        <td class="mono">${esc(d.assigned_ip)}</td>
-        <td>
+        <td data-label="Name"><strong>${esc(d.name)}</strong></td>
+        <td data-label="Platform"><span class="platform-badge">${esc(d.platform)}</span></td>
+        <td data-label="IP" class="mono">${esc(d.assigned_ip)}</td>
+        <td data-label="Status">
           <span class="status-dot ${d.online ? 'online' : 'offline'}"></span>
           <span class="status-text ${d.online ? 'online' : 'offline'}">${d.online ? 'online' : 'offline'}</span>
         </td>
-        <td class="mono" style="color:var(--text-secondary);font-size:.75rem">${d.last_seen_at ? timeAgo(d.last_seen_at) : '—'}</td>
+        <td data-label="Last Seen" class="mono" style="color:var(--text-secondary);font-size:.75rem">${d.last_seen_at ? timeAgo(d.last_seen_at) : '—'}</td>
         <td><button class="btn btn-danger btn-sm" onclick="deleteDevice('${d.id}')">Remove</button></td>
       </tr>
     `).join('');
@@ -2632,12 +2806,13 @@ document.getElementById('add-device-form').addEventListener('submit', async (e) 
 });
 
 async function deleteDevice(id) {
-  if (!confirm('Remove this device?')) return;
-  try {
-    await api('DELETE', `/v1/devices/${id}`);
-    toast('Device removed', 'success');
-    loadDevices();
-  } catch (err) { toast(err.message, 'error'); }
+  showConfirm('Remove Device', 'Remove this device from the network? This cannot be undone.', async () => {
+    try {
+      await api('DELETE', `/v1/devices/${id}`);
+      toast('Device removed', 'success');
+      loadDevices();
+    } catch (err) { toast(err.message, 'error'); }
+  });
 }
 
 // ── Networks ──
@@ -2716,12 +2891,13 @@ document.getElementById('add-network-form').addEventListener('submit', async (e)
 });
 
 async function deleteNetwork(id) {
-  if (!confirm('Delete this network? All devices must be removed first.')) return;
-  try {
-    await api('DELETE', `/v1/networks/${id}`);
-    toast('Network deleted', 'success');
-    loadNetworks();
-  } catch (err) { toast(err.message, 'error'); }
+  showConfirm('Delete Network', 'Delete this network? All devices must be removed first. This cannot be undone.', async () => {
+    try {
+      await api('DELETE', `/v1/networks/${id}`);
+      toast('Network deleted', 'success');
+      loadNetworks();
+    } catch (err) { toast(err.message, 'error'); }
+  });
 }
 
 async function loadMembers(networkId, _callerRole) {
@@ -2766,12 +2942,13 @@ async function loadMembers(networkId, _callerRole) {
 }
 
 async function removeMember(networkId, memberId) {
-  if (!confirm('Remove this member from the network?')) return;
-  try {
-    await api('DELETE', `/v1/networks/${networkId}/members/${memberId}`);
-    toast('Member removed', 'success');
-    loadNetworks();
-  } catch (err) { toast(err.message, 'error'); }
+  showConfirm('Remove Member', 'Remove this member from the network? They will lose access immediately.', async () => {
+    try {
+      await api('DELETE', `/v1/networks/${networkId}/members/${memberId}`);
+      toast('Member removed', 'success');
+      loadNetworks();
+    } catch (err) { toast(err.message, 'error'); }
+  });
 }
 
 async function changeMemberRole(networkId, memberId, newRole) {
@@ -2928,12 +3105,13 @@ async function usersChangeRole(networkId, memberId, newRole) {
 }
 
 async function usersRemove(networkId, memberId) {
-  if (!confirm('Remove this member from the network?')) return;
-  try {
-    await api('DELETE', `/v1/networks/${networkId}/members/${memberId}`);
-    toast('Member removed', 'success');
-    loadUsers();
-  } catch (err) { toast(err.message, 'error'); }
+  showConfirm('Remove Member', 'Remove this member from the network? They will lose access immediately.', async () => {
+    try {
+      await api('DELETE', `/v1/networks/${networkId}/members/${memberId}`);
+      toast('Member removed', 'success');
+      loadUsers();
+    } catch (err) { toast(err.message, 'error'); }
+  });
 }
 
 function usersOpenInvite() {
@@ -3202,12 +3380,12 @@ async function loadMetricsSummary() {
 
     tbody.innerHTML = rows.map(r => `
       <tr>
-        <td><strong>${esc(r.device_name)}</strong></td>
-        <td><span class="quality-score ${qualityClass(r.quality_score)}">${r.quality_score ?? '—'}</span></td>
-        <td class="mono">${r.latency_ms != null ? r.latency_ms.toFixed(1) + ' ms' : '—'}</td>
-        <td class="mono">${r.jitter_ms != null ? r.jitter_ms.toFixed(1) + ' ms' : '—'}</td>
-        <td class="mono">${r.packet_loss_ratio != null ? (r.packet_loss_ratio * 100).toFixed(2) + '%' : '—'}</td>
-        <td><span class="conn-badge ${r.connection_type || 'direct'}">${r.connection_type || 'direct'}</span></td>
+        <td data-label="Device"><strong>${esc(r.device_name)}</strong></td>
+        <td data-label="Quality"><span class="quality-score ${qualityClass(r.quality_score)}">${r.quality_score ?? '—'}</span></td>
+        <td data-label="Latency" class="mono">${r.latency_ms != null ? r.latency_ms.toFixed(1) + ' ms' : '—'}</td>
+        <td data-label="Jitter" class="mono">${r.jitter_ms != null ? r.jitter_ms.toFixed(1) + ' ms' : '—'}</td>
+        <td data-label="Loss" class="mono">${r.packet_loss_ratio != null ? (r.packet_loss_ratio * 100).toFixed(2) + '%' : '—'}</td>
+        <td data-label="Type"><span class="conn-badge ${r.connection_type || 'direct'}">${r.connection_type || 'direct'}</span></td>
       </tr>
     `).join('');
   } catch (err) {
@@ -3252,11 +3430,11 @@ async function loadApiKeys() {
     if (!keys.length) { tbody.innerHTML = ''; return; }
     tbody.innerHTML = keys.map(k => `
       <tr>
-        <td><strong>${esc(k.name)}</strong></td>
-        <td class="mono">${esc(k.prefix)}…</td>
-        <td class="mono" style="color:var(--text-secondary);font-size:.75rem">${timeAgo(k.created_at)}</td>
-        <td class="mono" style="color:var(--text-secondary);font-size:.75rem">${k.last_used_at ? timeAgo(k.last_used_at) : 'never'}</td>
-        <td class="mono" style="color:var(--text-secondary);font-size:.75rem">${k.expires_at ? new Date(k.expires_at).toLocaleDateString() : '—'}</td>
+        <td data-label="Name"><strong>${esc(k.name)}</strong></td>
+        <td data-label="Prefix" class="mono">${esc(k.prefix)}…</td>
+        <td data-label="Created" class="mono" style="color:var(--text-secondary);font-size:.75rem">${timeAgo(k.created_at)}</td>
+        <td data-label="Last Used" class="mono" style="color:var(--text-secondary);font-size:.75rem">${k.last_used_at ? timeAgo(k.last_used_at) : 'never'}</td>
+        <td data-label="Expires" class="mono" style="color:var(--text-secondary);font-size:.75rem">${k.expires_at ? new Date(k.expires_at).toLocaleDateString() : '—'}</td>
         <td><button class="btn btn-danger btn-sm" onclick="deleteApiKey('${k.id}')">Revoke</button></td>
       </tr>
     `).join('');
@@ -3285,12 +3463,13 @@ document.getElementById('add-apikey-form').addEventListener('submit', async (e) 
 });
 
 async function deleteApiKey(id) {
-  if (!confirm('Revoke this API key? This cannot be undone.')) return;
-  try {
-    await api('DELETE', `/v1/auth/api-keys/${id}`);
-    toast('API key revoked', 'success');
-    loadApiKeys();
-  } catch (err) { toast(err.message, 'error'); }
+  showConfirm('Revoke API Key', 'Revoke this API key? Any integrations using it will stop working. This cannot be undone.', async () => {
+    try {
+      await api('DELETE', `/v1/auth/api-keys/${id}`);
+      toast('API key revoked', 'success');
+      loadApiKeys();
+    } catch (err) { toast(err.message, 'error'); }
+  });
 }
 
 // ── Modals ──
@@ -3314,7 +3493,14 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
   });
 });
 
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeModals();
+    closeSidebar();
+    document.getElementById('confirm-overlay').classList.remove('open');
+    _confirmCallback = null;
+  }
+});
 
 // ── Helpers ──
 function esc(s) {

@@ -261,13 +261,10 @@ devices.delete('/:id', async (c) => {
 });
 
 // POST /devices/:id/heartbeat - Device heartbeat
+// No KV rate limit here — heartbeats are authenticated (JWT) and only update
+// the caller's own device record. Adding a per-IP KV counter would burn
+// through the free-tier KV write budget (1,000/day) with just a few devices.
 devices.post('/:id/heartbeat', async (c) => {
-  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
-  const rl = await checkRateLimit(c.env.KV, ip, { action: 'heartbeat', limit: 30, windowSeconds: 60 });
-  if (rl.limited) {
-    return c.json({ error: 'Too many requests. Try again later.' }, 429, { 'Retry-After': String(rl.retryAfter) });
-  }
-
   const userId = c.get('userId');
   const deviceId = c.req.param('id');
   const body = await c.req.json<{ endpoint?: string; client_version?: string }>().catch(() => ({} as { endpoint?: string; client_version?: string }));

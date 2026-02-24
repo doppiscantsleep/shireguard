@@ -12,6 +12,7 @@ export interface Env {
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
   DISCORD_WEBHOOK_URL: string;
+  RESEND_API_KEY: string;
 }
 
 export interface User {

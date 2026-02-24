@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { authMiddleware } from '../auth/middleware';
 import { logAudit } from '../lib/audit';
+import { sendEmail, inviteEmailHtml } from '../lib/email';
 
 const networks = new Hono<{ Bindings: Env }>();
 networks.use('*', authMiddleware);
@@ -241,6 +242,7 @@ networks.post('/:id/invites', async (c) => {
     role?: 'admin' | 'member';
     max_uses?: number;
     expires_hours?: number;
+    to_email?: string;
   }>();
 
   // Admins can only invite members, not admins
@@ -250,6 +252,11 @@ networks.post('/:id/invites', async (c) => {
   }
   if (!['admin', 'member'].includes(inviteRole)) {
     return c.json({ error: 'role must be admin or member' }, 400);
+  }
+
+  const toEmail = body.to_email?.trim() ?? null;
+  if (toEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) {
+    return c.json({ error: 'Invalid to_email address' }, 400);
   }
 
   const maxUses = body.max_uses ?? 1;
@@ -268,19 +275,41 @@ networks.post('/:id/invites', async (c) => {
     .bind(inviteId, networkId, userId, inviteRole, token, maxUses, expiresAt)
     .run();
 
+  const inviteUrl = `https://shireguard.com/?invite=${token}`;
+
   c.executionCtx.waitUntil(logAudit(c.env.DB, {
     userId,
     action: 'invite.create',
     resourceType: 'invite',
     resourceId: inviteId,
-    detail: `Created ${inviteRole} invite (max ${maxUses} use${maxUses !== 1 ? 's' : ''}, expires in ${expiresHours}h)`,
+    detail: `Created ${inviteRole} invite (max ${maxUses} use${maxUses !== 1 ? 's' : ''}, expires in ${expiresHours}h)${toEmail ? ` → ${toEmail}` : ''}`,
     ip: c.req.header('CF-Connecting-IP') ?? null,
     networkId,
   }));
 
+  if (toEmail) {
+    c.executionCtx.waitUntil((async () => {
+      const [network, inviter] = await Promise.all([
+        c.env.DB.prepare('SELECT name FROM networks WHERE id = ?').bind(networkId).first<{ name: string }>(),
+        c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(userId).first<{ email: string }>(),
+      ]);
+      await sendEmail(c.env, {
+        to: toEmail,
+        subject: `You've been invited to join ${network?.name ?? 'a network'} on Shireguard`,
+        html: inviteEmailHtml({
+          inviterEmail: inviter?.email ?? 'Someone',
+          networkName: network?.name ?? 'a network',
+          inviteUrl,
+          role: inviteRole,
+          expiresHours,
+        }),
+      });
+    })());
+  }
+
   return c.json({
     token,
-    invite_url: `https://shireguard.com/?invite=${token}`,
+    invite_url: inviteUrl,
   }, 201);
 });
 

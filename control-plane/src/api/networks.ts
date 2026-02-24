@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
 import { authMiddleware } from '../auth/middleware';
+import { checkRateLimit } from '../auth/ratelimit';
 import { logAudit } from '../lib/audit';
 import { sendEmail, inviteEmailHtml } from '../lib/email';
 import { getUserTier, TIER_LIMITS } from '../lib/tiers';
@@ -30,6 +31,12 @@ async function getNetworkRole(
 
 // POST /networks - Create a new network
 networks.post('/', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const rl = await checkRateLimit(c.env.KV, ip, { action: 'network-create', limit: 3, windowSeconds: 60 });
+  if (rl.limited) {
+    return c.json({ error: 'Too many requests. Try again later.' }, 429, { 'Retry-After': String(rl.retryAfter) });
+  }
+
   const userId = c.get('userId');
   const body = await c.req.json<{ name: string; cidr?: string }>();
 

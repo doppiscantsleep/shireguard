@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/shireguard/relay/internal/relay"
 )
@@ -20,6 +21,8 @@ func main() {
 	udpBase := flag.Int("udp-base", 51821, "Base UDP port for relay slots")
 	token := flag.String("token", "", "Shared secret for relay registration auth")
 	host := flag.String("host", "", "Public hostname or IP of this relay server")
+	tlsCert := flag.String("tls-cert", "", "Path to TLS certificate file (enables HTTPS)")
+	tlsKey := flag.String("tls-key", "", "Path to TLS private key file (enables HTTPS)")
 	flag.Parse()
 
 	if *showVersion {
@@ -34,7 +37,21 @@ func main() {
 		log.Fatal("--host flag is required")
 	}
 
+	// Allow env vars as fallback for TLS paths (useful for systemd/Docker deployments)
+	certFile := *tlsCert
+	keyFile := *tlsKey
+	if certFile == "" {
+		certFile = os.Getenv("RELAY_TLS_CERT")
+	}
+	if keyFile == "" {
+		keyFile = os.Getenv("RELAY_TLS_KEY")
+	}
+
 	srv := relay.NewServer(*host, *udpBase, *token, version, commit)
-	log.Printf("Starting shireguard relay %s on %s: HTTP :%d, UDP base :%d", version, *host, *port, *udpBase)
-	log.Fatal(srv.ListenAndServe(fmt.Sprintf(":%d", *port)))
+	proto := "HTTP"
+	if certFile != "" && keyFile != "" {
+		proto = "HTTPS"
+	}
+	log.Printf("Starting shireguard relay %s on %s: %s :%d, UDP base :%d", version, *host, proto, *port, *udpBase)
+	log.Fatal(srv.ListenAndServe(fmt.Sprintf(":%d", *port), certFile, keyFile))
 }

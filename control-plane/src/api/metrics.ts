@@ -1,12 +1,19 @@
 import { Hono } from 'hono';
 import type { Env, MetricsBatch } from '../types';
 import { authMiddleware } from '../auth/middleware';
+import { checkRateLimit } from '../auth/ratelimit';
 
 const metrics = new Hono<{ Bindings: Env }>();
 metrics.use('*', authMiddleware);
 
 // POST /metrics - Batched metrics ingestion (write directly to D1)
 metrics.post('/', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const rl = await checkRateLimit(c.env.KV, ip, { action: 'metrics-ingest', limit: 30, windowSeconds: 60 });
+  if (rl.limited) {
+    return c.json({ error: 'Too many requests. Try again later.' }, 429, { 'Retry-After': String(rl.retryAfter) });
+  }
+
   const userId = c.get('userId');
   const body = await c.req.json<MetricsBatch>();
 

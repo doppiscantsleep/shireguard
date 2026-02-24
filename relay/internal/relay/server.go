@@ -147,7 +147,8 @@ func NewServer(host string, udpBase int, authToken string, version, commit strin
 }
 
 // ListenAndServe starts the HTTP server on the given address (e.g. ":8080").
-func (s *RelayServer) ListenAndServe(addr string) error {
+// If certFile and keyFile are non-empty, it starts a TLS server instead.
+func (s *RelayServer) ListenAndServe(addr, certFile, keyFile string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /status", s.handleStatus)
@@ -160,6 +161,10 @@ func (s *RelayServer) ListenAndServe(addr string) error {
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
+	}
+	if certFile != "" && keyFile != "" {
+		log.Printf("TLS enabled: cert=%s key=%s", certFile, keyFile)
+		return srv.ListenAndServeTLS(certFile, keyFile)
 	}
 	return srv.ListenAndServe()
 }

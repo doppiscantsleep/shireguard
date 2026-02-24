@@ -687,10 +687,31 @@ func (d *Daemon) sharedRelayEndpoint(peer api.Peer) string {
 		if d.relayProxyAddr != "" {
 			return d.relayProxyAddr
 		}
-		return d.relayHost + ":" + strconv.Itoa(d.relayPort)
+		return resolveHost(d.relayHost) + ":" + strconv.Itoa(d.relayPort)
 	}
 	// Peer's IP is lower — use peer's relay port directly.
-	return peer.RelayHost + ":" + strconv.Itoa(peer.RelayPort)
+	return resolveHost(peer.RelayHost) + ":" + strconv.Itoa(peer.RelayPort)
+}
+
+// resolveHost resolves a hostname to its first IPv4 address string. If host is
+// already an IP address it is returned as-is. Falls back to the original
+// hostname on error so macOS userspace WireGuard (which handles DNS itself)
+// continues to work; Linux kernel WireGuard requires a bare IP.
+func resolveHost(host string) string {
+	if net.ParseIP(host) != nil {
+		return host
+	}
+	addrs, err := net.LookupHost(host)
+	if err != nil {
+		slog.Warn("could not resolve relay host, using hostname directly", "host", host, "err", err)
+		return host
+	}
+	for _, a := range addrs {
+		if ip := net.ParseIP(a); ip != nil && ip.To4() != nil {
+			return ip.String()
+		}
+	}
+	return addrs[0]
 }
 
 // netIPLess returns true if a < b (IPv4 comparison).

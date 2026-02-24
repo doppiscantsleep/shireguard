@@ -2658,6 +2658,10 @@ body{
             <option value="720">30 days</option>
           </select>
         </div>
+        <div class="form-group">
+          <label class="form-label">Email invite to <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <input type="email" class="form-input" id="invite-to-email" placeholder="colleague@example.com" oninput="updateInviteBtn()">
+        </div>
         <div id="invite-link-box" style="display:none">
           <div class="invite-url-box">
             <input type="text" id="invite-link-input" readonly>
@@ -3287,10 +3291,17 @@ function openInviteModal(networkId, callerRole) {
   document.getElementById('active-invites-section').style.display = 'none';
   document.getElementById('invite-link-input').value = '';
   document.getElementById('invite-form').reset();
+  document.getElementById('invite-to-email').value = '';
   // Admins can't set admin role
   document.getElementById('invite-role-admin-opt').disabled = callerRole !== 'owner';
+  updateInviteBtn();
   document.getElementById('modal-invite').classList.add('open');
   loadActiveInvites(networkId);
+}
+
+function updateInviteBtn() {
+  const email = document.getElementById('invite-to-email').value.trim();
+  document.getElementById('generate-invite-btn').textContent = email ? 'Send Invite' : 'Generate Link';
 }
 
 async function loadActiveInvites(networkId) {
@@ -3323,13 +3334,15 @@ async function generateInvite() {
   const role = document.getElementById('invite-role').value;
   const maxUses = parseInt(document.getElementById('invite-max-uses').value);
   const expiresHours = parseInt(document.getElementById('invite-expires').value);
+  const toEmail = document.getElementById('invite-to-email').value.trim();
   try {
-    const data = await api('POST', `/v1/networks/${currentInviteNetworkId}/invites`, {
-      role, max_uses: maxUses, expires_hours: expiresHours,
-    });
+    const payload = { role, max_uses: maxUses, expires_hours: expiresHours };
+    if (toEmail) payload.to_email = toEmail;
+    const data = await api('POST', `/v1/networks/${currentInviteNetworkId}/invites`, payload);
     if (!data) return;
     document.getElementById('invite-link-input').value = data.invite_url;
     document.getElementById('invite-link-box').style.display = '';
+    if (toEmail) toast(`Invite sent to ${toEmail}`, 'success');
     loadActiveInvites(currentInviteNetworkId);
   } catch (err) { toast(err.message, 'error'); }
 }

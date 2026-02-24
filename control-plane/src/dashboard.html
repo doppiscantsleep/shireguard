@@ -1416,11 +1416,16 @@ body{
           <div class="page-desc">Manage registered devices in your network</div>
           <div class="last-updated" id="devices-last-updated"></div>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="openModal('add-device')">+ Add Device</button>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <select class="form-select" id="devices-filter-network" style="width:200px" onchange="loadDevices()">
+            <option value="">All my devices</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="openModal('add-device')">+ Add Device</button>
+        </div>
       </div>
       <div class="panel">
-        <table class="data-table">
-          <thead><tr>
+        <table class="data-table" id="devices-table">
+          <thead><tr id="devices-thead-row">
             <th>Name</th><th>Platform</th><th>IP Address</th><th>Status</th><th>Last Seen</th><th></th>
           </tr></thead>
           <tbody id="devices-tbody"></tbody>
@@ -3076,34 +3081,68 @@ function populateNetworkSelects() {
     actSel.prepend(allOpt);
     actSel.value = '';
   }
+  // Devices filter select gets an "All my devices" option prepended
+  const devSel = document.getElementById('devices-filter-network');
+  if (devSel) {
+    const prev = devSel.value;
+    devSel.innerHTML = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'All my devices';
+    devSel.appendChild(allOpt);
+    networks.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n.id;
+      opt.textContent = `${n.name} (${n.cidr})`;
+      devSel.appendChild(opt);
+    });
+    devSel.value = prev;
+  }
 }
 
 // ── Devices ──
 async function loadDevices() {
   const tbody = document.getElementById('devices-tbody');
   const empty = document.getElementById('devices-empty');
-  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem"><span class="spinner"></span></td></tr>';
+  const networkId = document.getElementById('devices-filter-network')?.value || '';
+  const cols = 6;
+  tbody.innerHTML = `<tr><td colspan="${cols}" style="text-align:center;padding:2rem"><span class="spinner"></span></td></tr>`;
   try {
-    const data = await api('GET', '/v1/devices');
+    const url = networkId ? `/v1/devices?network_id=${networkId}` : '/v1/devices';
+    const data = await api('GET', url);
     const devices = data.devices || [];
+    const callerRole = data.caller_role || 'member';
+    const isAdminView = networkId && (callerRole === 'owner' || callerRole === 'admin');
+
+    // Update header to show/hide Owner column
+    document.getElementById('devices-thead-row').innerHTML = isAdminView
+      ? '<th>Name</th><th>Platform</th><th>IP Address</th><th>Owner</th><th>Status</th><th>Last Seen</th><th></th>'
+      : '<th>Name</th><th>Platform</th><th>IP Address</th><th>Status</th><th>Last Seen</th><th></th>';
+
     empty.style.display = devices.length ? 'none' : '';
     if (!devices.length) { tbody.innerHTML = ''; return; }
-    // Store devices for drawer access
     window._devicesCache = devices;
-    tbody.innerHTML = devices.map((d, i) => `
-      <tr class="device-row" data-device-index="${i}">
-        <td data-label="Name"><strong>${esc(d.name)}</strong></td>
-        <td data-label="Platform"><span class="platform-badge">${esc(d.platform)}</span></td>
-        <td data-label="IP" class="mono">${esc(d.assigned_ip)}</td>
-        <td data-label="Status">
-          <span class="status-dot ${d.online ? 'online' : 'offline'}"></span>
-          <span class="status-text ${d.online ? 'online' : 'offline'}">${d.online ? 'online' : 'offline'}</span>
-        </td>
-        <td data-label="Last Seen" class="mono" style="color:var(--text-secondary);font-size:.75rem">${d.last_seen_at ? timeAgo(d.last_seen_at) : '—'}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteDevice('${d.id}')">Remove</button></td>
-      </tr>
-    `).join('');
-    // Attach click handlers for device rows
+
+    tbody.innerHTML = devices.map((d, i) => {
+      const canDelete = d.is_own !== false || callerRole === 'owner';
+      const ownerCell = isAdminView
+        ? `<td data-label="Owner" class="mono" style="font-size:.72rem;color:var(--text-secondary)">${d.is_own ? '<span style="color:var(--text-muted)">you</span>' : esc(d.owner_email || '—')}</td>`
+        : '';
+      return `
+        <tr class="device-row" data-device-index="${i}">
+          <td data-label="Name"><strong>${esc(d.name)}</strong></td>
+          <td data-label="Platform"><span class="platform-badge">${esc(d.platform)}</span></td>
+          <td data-label="IP" class="mono">${esc(d.assigned_ip)}</td>
+          ${ownerCell}
+          <td data-label="Status">
+            <span class="status-dot ${d.online ? 'online' : 'offline'}"></span>
+            <span class="status-text ${d.online ? 'online' : 'offline'}">${d.online ? 'online' : 'offline'}</span>
+          </td>
+          <td data-label="Last Seen" class="mono" style="color:var(--text-secondary);font-size:.75rem">${d.last_seen_at ? timeAgo(d.last_seen_at) : '—'}</td>
+          <td>${canDelete ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteDevice('${d.id}')">Remove</button>` : ''}</td>
+        </tr>`;
+    }).join('');
+
     tbody.querySelectorAll('.device-row').forEach(row => {
       row.addEventListener('click', () => {
         const idx = parseInt(row.dataset.deviceIndex, 10);

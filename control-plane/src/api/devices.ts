@@ -97,31 +97,66 @@ devices.post('/', async (c) => {
   }, 201);
 });
 
-// GET /devices - List user's devices
+// GET /devices - List devices
+// With ?network_id and caller is owner/admin: returns ALL devices in that network with owner_email.
+// Otherwise: returns the caller's own devices.
 devices.get('/', async (c) => {
   const userId = c.get('userId');
   const networkId = c.req.query('network_id');
+  const now = Date.now();
 
+  if (networkId) {
+    // Check if caller is owner or admin of this network
+    const access = await c.env.DB.prepare(`
+      SELECT 'owner' AS role FROM networks WHERE id = ? AND user_id = ?
+      UNION
+      SELECT role FROM network_members WHERE network_id = ? AND user_id = ? AND role = 'admin'
+      LIMIT 1
+    `)
+      .bind(networkId, userId, networkId, userId)
+      .first<{ role: string }>();
+
+    if (access) {
+      // Owner/admin: return all devices in the network with owner info
+      const result = await c.env.DB.prepare(`
+        SELECT d.id, d.name, d.platform, d.public_key, d.network_id, d.assigned_ip,
+               d.endpoint, d.last_seen_at, d.created_at, d.user_id,
+               u.email AS owner_email
+        FROM devices d
+        JOIN users u ON u.id = d.user_id
+        WHERE d.network_id = ?
+        ORDER BY d.assigned_ip
+      `)
+        .bind(networkId)
+        .all();
+
+      const devices = result.results.map((d: Record<string, unknown>) => ({
+        ...d,
+        online: d.last_seen_at ? now - new Date(d.last_seen_at as string).getTime() < 120_000 : false,
+        is_own: d.user_id === userId,
+      }));
+
+      return c.json({ devices, caller_role: access.role });
+    }
+  }
+
+  // Default: return caller's own devices, optionally filtered by network
   let query = 'SELECT id, name, platform, public_key, network_id, assigned_ip, endpoint, last_seen_at, created_at FROM devices WHERE user_id = ?';
   const params: string[] = [userId];
-
   if (networkId) {
     query += ' AND network_id = ?';
     params.push(networkId);
   }
-
   query += ' ORDER BY created_at DESC';
 
   const result = await c.env.DB.prepare(query).bind(...params).all();
-
-  // Compute online status (seen in last 2 minutes)
-  const now = Date.now();
-  const devicesWithStatus = result.results.map((d: Record<string, unknown>) => ({
+  const devices = result.results.map((d: Record<string, unknown>) => ({
     ...d,
     online: d.last_seen_at ? now - new Date(d.last_seen_at as string).getTime() < 120_000 : false,
+    is_own: true,
   }));
 
-  return c.json({ devices: devicesWithStatus });
+  return c.json({ devices, caller_role: 'member' });
 });
 
 // GET /devices/:id

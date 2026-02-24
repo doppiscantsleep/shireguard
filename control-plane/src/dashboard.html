@@ -1426,7 +1426,7 @@ body{
       <div class="panel">
         <table class="data-table" id="devices-table">
           <thead><tr id="devices-thead-row">
-            <th>Name</th><th>Platform</th><th>IP Address</th><th>Status</th><th>Last Seen</th><th></th>
+            <th>Name</th><th>Platform</th><th>IP Address</th><th>Status</th><th>Last Seen</th><th>Version</th><th></th>
           </tr></thead>
           <tbody id="devices-tbody"></tbody>
         </table>
@@ -3116,8 +3116,8 @@ async function loadDevices() {
 
     // Update header to show/hide Owner column
     document.getElementById('devices-thead-row').innerHTML = isAdminView
-      ? '<th>Name</th><th>Platform</th><th>IP Address</th><th>Owner</th><th>Status</th><th>Last Seen</th><th></th>'
-      : '<th>Name</th><th>Platform</th><th>IP Address</th><th>Status</th><th>Last Seen</th><th></th>';
+      ? '<th>Name</th><th>Platform</th><th>IP Address</th><th>Owner</th><th>Status</th><th>Last Seen</th><th>Version</th><th></th>'
+      : '<th>Name</th><th>Platform</th><th>IP Address</th><th>Status</th><th>Last Seen</th><th>Version</th><th></th>';
 
     empty.style.display = devices.length ? 'none' : '';
     if (!devices.length) { tbody.innerHTML = ''; return; }
@@ -3139,6 +3139,7 @@ async function loadDevices() {
             <span class="status-text ${d.online ? 'online' : 'offline'}">${d.online ? 'online' : 'offline'}</span>
           </td>
           <td data-label="Last Seen" class="mono" style="color:var(--text-secondary);font-size:.75rem">${d.last_seen_at ? timeAgo(d.last_seen_at) : '—'}</td>
+          <td data-label="Version" class="mono" style="color:var(--text-secondary);font-size:.75rem">${d.client_version ? esc(d.client_version) : '—'}</td>
           <td>${canDelete ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteDevice('${d.id}')">Remove</button>` : ''}</td>
         </tr>`;
     }).join('');
@@ -4056,6 +4057,7 @@ function openDeviceDrawer(device) {
     { label: 'Public Endpoint', value: device.endpoint || '—', mono: true, copy: !!device.endpoint },
     { label: 'Platform', value: platformLabel(device.platform), mono: false, copy: false },
     { label: 'WireGuard Key', value: truncKey, rawValue: device.public_key, mono: true, copy: !!device.public_key },
+    { label: 'Client Version', value: device.client_version || '—', mono: true, copy: false },
     { label: 'First Connected', value: formatDateTime(device.created_at), mono: false, copy: false },
     { label: 'Last Seen', value: lastSeenRel, title: lastSeenAbs, mono: false, copy: false },
   ];

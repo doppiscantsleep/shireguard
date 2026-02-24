@@ -89,10 +89,13 @@ func (c *Client) ListDevices() ([]Device, error) {
 	return resp.Devices, nil
 }
 
-func (c *Client) Heartbeat(deviceID string, endpoint string) error {
+func (c *Client) Heartbeat(deviceID, endpoint, version string) error {
 	body := map[string]string{}
 	if endpoint != "" {
 		body["endpoint"] = endpoint
+	}
+	if version != "" {
+		body["client_version"] = version
 	}
 	var resp struct{}
 	return c.do("POST", fmt.Sprintf("/v1/devices/%s/heartbeat", deviceID), body, &resp)

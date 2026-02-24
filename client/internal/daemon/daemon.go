@@ -118,7 +118,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 
 	// 4. Send initial heartbeat with discovered endpoint
-	if err := d.client.Heartbeat(d.cfg.DeviceID, d.stunEndpoint); err != nil {
+	if err := d.client.Heartbeat(d.cfg.DeviceID, d.stunEndpoint, d.Version); err != nil {
 		slog.Error("initial heartbeat failed", "err", err)
 	}
 
@@ -158,7 +158,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 			d.stunMu.RLock()
 			endpoint := d.stunEndpoint
 			d.stunMu.RUnlock()
-			if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint); err != nil {
+			if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint, d.Version); err != nil {
 				heartbeatFailures++
 				slog.Error("heartbeat failed", "attempts", heartbeatFailures, "err", err)
 				heartbeatTicker.Reset(backoffDuration(heartbeatInterval, heartbeatFailures))
@@ -369,7 +369,7 @@ func (d *Daemon) stunRefreshLoop(ctx context.Context) {
 
 			if changed {
 				slog.Info("STUN endpoint changed, sending heartbeat", "endpoint", endpoint)
-				if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint); err != nil {
+				if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint, d.Version); err != nil {
 					slog.Error("heartbeat after STUN change failed", "err", err)
 				}
 			}

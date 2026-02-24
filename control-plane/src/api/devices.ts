@@ -142,7 +142,7 @@ devices.get('/', async (c) => {
       // Owner/admin: return all devices in the network with owner info
       const result = await c.env.DB.prepare(`
         SELECT d.id, d.name, d.platform, d.public_key, d.network_id, d.assigned_ip,
-               d.endpoint, d.last_seen_at, d.created_at, d.user_id,
+               d.endpoint, d.last_seen_at, d.created_at, d.user_id, d.client_version,
                u.email AS owner_email
         FROM devices d
         JOIN users u ON u.id = d.user_id
@@ -163,7 +163,7 @@ devices.get('/', async (c) => {
   }
 
   // Default: return caller's own devices, optionally filtered by network
-  let query = 'SELECT id, name, platform, public_key, network_id, assigned_ip, endpoint, last_seen_at, created_at FROM devices WHERE user_id = ?';
+  let query = 'SELECT id, name, platform, public_key, network_id, assigned_ip, endpoint, last_seen_at, created_at, client_version FROM devices WHERE user_id = ?';
   const params: string[] = [userId];
   if (networkId) {
     query += ' AND network_id = ?';
@@ -270,7 +270,7 @@ devices.post('/:id/heartbeat', async (c) => {
 
   const userId = c.get('userId');
   const deviceId = c.req.param('id');
-  const body = await c.req.json<{ endpoint?: string }>().catch(() => ({} as { endpoint?: string }));
+  const body = await c.req.json<{ endpoint?: string; client_version?: string }>().catch(() => ({} as { endpoint?: string; client_version?: string }));
 
   const sets = ["last_seen_at = datetime('now')"];
   const params: string[] = [];
@@ -278,6 +278,11 @@ devices.post('/:id/heartbeat', async (c) => {
   if (body.endpoint) {
     sets.push('endpoint = ?');
     params.push(body.endpoint);
+  }
+
+  if (body.client_version) {
+    sets.push('client_version = ?');
+    params.push(body.client_version);
   }
 
   params.push(deviceId, userId);

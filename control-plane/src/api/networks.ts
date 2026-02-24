@@ -135,7 +135,7 @@ networks.get('/:id/peers', async (c) => {
     .first();
 
   const deviceResult = await c.env.DB.prepare(
-    'SELECT id, name, platform, public_key, assigned_ip, endpoint, last_seen_at, relay_host, relay_port FROM devices WHERE network_id = ? ORDER BY assigned_ip'
+    'SELECT id, name, platform, public_key, assigned_ip, endpoint, last_seen_at, relay_host, relay_port, client_version FROM devices WHERE network_id = ? ORDER BY assigned_ip'
   )
     .bind(networkId)
     .all();

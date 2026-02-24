@@ -205,16 +205,6 @@ func (c *Client) RegisterDeviceWithRelay(deviceID string) (*RelayRegistration, e
 	return &resp, nil
 }
 
-// StoreRelayEndpoint informs the control plane of this device's relay host and port
-// so peers can discover it.
-func (c *Client) StoreRelayEndpoint(deviceID, relayHost string, relayPort int) error {
-	body := map[string]any{
-		"relay_host": relayHost,
-		"relay_port": relayPort,
-	}
-	var resp struct{}
-	return c.do("POST", fmt.Sprintf("/v1/devices/%s/relay-endpoint", deviceID), body, &resp)
-}
 
 // Metrics
 

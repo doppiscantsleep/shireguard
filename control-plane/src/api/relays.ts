@@ -28,12 +28,14 @@ relays.post('/register', async (c) => {
 
   // Fetch relay with auth_token (server-side only, never returned to clients)
   const relay = await c.env.DB.prepare(
-    "SELECT host, port, auth_token FROM relays WHERE status = 'active' ORDER BY created_at LIMIT 1"
-  ).first<{ host: string; port: number; auth_token: string }>();
+    "SELECT host, port, auth_token, tls_enabled FROM relays WHERE status = 'active' ORDER BY created_at LIMIT 1"
+  ).first<{ host: string; port: number; auth_token: string; tls_enabled: number }>();
   if (!relay) return c.json({ error: 'no relays available' }, 503);
 
+  const relayProto = relay.tls_enabled ? 'https' : 'http';
+
   // Proxy registration to relay server
-  const resp = await fetch(`http://${relay.host}:${relay.port}/register`, {
+  const resp = await fetch(`${relayProto}://${relay.host}:${relay.port}/register`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -47,21 +49,31 @@ relays.post('/register', async (c) => {
     return c.json({ error: `relay registration failed: relay returned ${resp.status}: ${body}` }, 502);
   }
 
-  const data = await resp.json();
+  const data = await resp.json<{ relay_host: string; relay_port: number; relay_token: string }>();
+
+  // Write relay_host and relay_port to the device record server-side, using the
+  // authoritative relay.host from our DB — never the client-supplied value.
+  // This removes the need for the client to call POST /devices/:id/relay-endpoint
+  // and eliminates the client-controlled relay_host attack surface.
+  await c.env.DB.prepare(
+    'UPDATE devices SET relay_host = ?, relay_port = ? WHERE id = ?'
+  ).bind(relay.host, data.relay_port, device_id).run();
+
   return c.json(data);
 });
 
 // GET /relays/ping — measure round-trip latency from the Cloudflare edge to the active relay
 relays.get('/ping', async (c) => {
   const relay = await c.env.DB.prepare(
-    "SELECT host, port, region FROM relays WHERE status = 'active' ORDER BY created_at LIMIT 1"
-  ).first<{ host: string; port: number; region: string }>();
+    "SELECT host, port, region, tls_enabled FROM relays WHERE status = 'active' ORDER BY created_at LIMIT 1"
+  ).first<{ host: string; port: number; region: string; tls_enabled: number }>();
 
   if (!relay) return c.json({ error: 'no relays available' }, 503);
 
+  const relayProto = relay.tls_enabled ? 'https' : 'http';
   const start = Date.now();
   try {
-    const resp = await fetch(`http://${relay.host}:${relay.port}/health`, {
+    const resp = await fetch(`${relayProto}://${relay.host}:${relay.port}/health`, {
       signal: AbortSignal.timeout(5000),
     });
     const latency_ms = Date.now() - start;

@@ -1,14 +1,32 @@
 import { Hono } from 'hono';
 import type { Env } from '../types';
 import { authMiddleware } from '../auth/middleware';
+import { checkRateLimit } from '../auth/ratelimit';
 import { logAudit } from '../lib/audit';
 import { getUserTier, TIER_LIMITS } from '../lib/tiers';
+
+/** A valid WireGuard public key is exactly 32 bytes encoded as standard base64 (44 chars, trailing '='). */
+function isValidWireGuardKey(key: string): boolean {
+  if (key.length !== 44 || !key.endsWith('=')) return false;
+  try {
+    const decoded = atob(key);
+    return decoded.length === 32;
+  } catch {
+    return false;
+  }
+}
 
 const devices = new Hono<{ Bindings: Env }>();
 devices.use('*', authMiddleware);
 
 // POST /devices - Register a new device
 devices.post('/', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const rl = await checkRateLimit(c.env.KV, ip, { action: 'device-register', limit: 5, windowSeconds: 60 });
+  if (rl.limited) {
+    return c.json({ error: 'Too many requests. Try again later.' }, 429, { 'Retry-After': String(rl.retryAfter) });
+  }
+
   const userId = c.get('userId');
   const body = await c.req.json<{
     name: string;
@@ -23,6 +41,10 @@ devices.post('/', async (c) => {
 
   if (!['macos', 'linux', 'raspberrypi'].includes(body.platform)) {
     return c.json({ error: 'Platform must be macos, linux, or raspberrypi' }, 400);
+  }
+
+  if (!isValidWireGuardKey(body.public_key)) {
+    return c.json({ error: 'Invalid public_key: must be a 44-character base64-encoded 32-byte WireGuard key' }, 400);
   }
 
   // Enforce tier device limit (counts all devices owned by this user across all networks)
@@ -240,6 +262,12 @@ devices.delete('/:id', async (c) => {
 
 // POST /devices/:id/heartbeat - Device heartbeat
 devices.post('/:id/heartbeat', async (c) => {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const rl = await checkRateLimit(c.env.KV, ip, { action: 'heartbeat', limit: 30, windowSeconds: 60 });
+  if (rl.limited) {
+    return c.json({ error: 'Too many requests. Try again later.' }, 429, { 'Retry-After': String(rl.retryAfter) });
+  }
+
   const userId = c.get('userId');
   const deviceId = c.req.param('id');
   const body = await c.req.json<{ endpoint?: string }>().catch(() => ({} as { endpoint?: string }));
@@ -292,29 +320,5 @@ async function getNextIp(db: D1Database, networkId: string, cidr: string): Promi
 
   return null;
 }
-
-// POST /devices/:id/relay-endpoint — store relay_host + relay_port for a device
-devices.post('/:id/relay-endpoint', async (c) => {
-  const userId = c.get('userId');
-  const deviceId = c.req.param('id');
-
-  const body = await c.req.json<{ relay_host: string; relay_port: number }>();
-
-  if (!body.relay_host || !body.relay_port) {
-    return c.json({ error: 'relay_host and relay_port are required' }, 400);
-  }
-
-  const result = await c.env.DB.prepare(
-    'UPDATE devices SET relay_host = ?, relay_port = ? WHERE id = ? AND user_id = ?'
-  )
-    .bind(body.relay_host, body.relay_port, deviceId, userId)
-    .run();
-
-  if (!result.meta.changes) {
-    return c.json({ error: 'Device not found' }, 404);
-  }
-
-  return c.json({ updated: true });
-});
 
 export { devices };

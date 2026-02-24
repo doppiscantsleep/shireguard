@@ -282,11 +282,6 @@ func (d *Daemon) setupRelayOnce(ctx context.Context) <-chan struct{} {
 
 	slog.Info("registered with relay", "host", reg.RelayHost, "port", reg.RelayPort)
 
-	// Store relay endpoint in control plane so peers can discover us
-	if err := d.client.StoreRelayEndpoint(d.cfg.DeviceID, reg.RelayHost, reg.RelayPort); err != nil {
-		slog.Error("storing relay endpoint failed", "err", err)
-	}
-
 	// Start a local UDP proxy that bridges WireGuard and the relay through
 	// a single outbound socket.
 	proxyAddr, died, err := d.startRelayProxy(ctx)

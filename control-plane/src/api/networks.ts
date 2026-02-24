@@ -3,6 +3,7 @@ import type { Env } from '../types';
 import { authMiddleware } from '../auth/middleware';
 import { logAudit } from '../lib/audit';
 import { sendEmail, inviteEmailHtml } from '../lib/email';
+import { getUserTier, TIER_LIMITS } from '../lib/tiers';
 
 const networks = new Hono<{ Bindings: Env }>();
 networks.use('*', authMiddleware);
@@ -34,6 +35,21 @@ networks.post('/', async (c) => {
 
   if (!body.name) {
     return c.json({ error: 'Name is required' }, 400);
+  }
+
+  // Enforce tier network limit (owned networks only)
+  const [tier, networkCount] = await Promise.all([
+    getUserTier(c.env.DB, userId),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM networks WHERE user_id = ?')
+      .bind(userId)
+      .first<{ count: number }>(),
+  ]);
+  const netLimit = TIER_LIMITS[tier].networks;
+  if ((networkCount?.count ?? 0) >= netLimit) {
+    return c.json({
+      error: `${tier === 'free' ? 'Free plan' : 'Your plan'} is limited to ${netLimit} network${netLimit !== 1 ? 's' : ''}. Upgrade to add more.`,
+      upgrade_required: true,
+    }, 403);
   }
 
   const cidr = body.cidr || '100.65.0.0/16';

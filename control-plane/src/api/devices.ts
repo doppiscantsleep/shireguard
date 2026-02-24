@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { authMiddleware } from '../auth/middleware';
 import { logAudit } from '../lib/audit';
+import { getUserTier, TIER_LIMITS } from '../lib/tiers';
 
 const devices = new Hono<{ Bindings: Env }>();
 devices.use('*', authMiddleware);
@@ -22,6 +23,21 @@ devices.post('/', async (c) => {
 
   if (!['macos', 'linux', 'raspberrypi'].includes(body.platform)) {
     return c.json({ error: 'Platform must be macos, linux, or raspberrypi' }, 400);
+  }
+
+  // Enforce tier device limit (counts all devices owned by this user across all networks)
+  const [tier, deviceCount] = await Promise.all([
+    getUserTier(c.env.DB, userId),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM devices WHERE user_id = ?')
+      .bind(userId)
+      .first<{ count: number }>(),
+  ]);
+  const limit = TIER_LIMITS[tier].devices;
+  if ((deviceCount?.count ?? 0) >= limit) {
+    return c.json({
+      error: `${tier === 'free' ? 'Free plan' : 'Your plan'} is limited to ${limit} devices. Upgrade to add more.`,
+      upgrade_required: true,
+    }, 403);
   }
 
   // Verify the user owns or is a member of the network

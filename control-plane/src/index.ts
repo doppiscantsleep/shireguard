@@ -9,6 +9,7 @@ import { relays } from './api/relays';
 import { activity } from './api/activity';
 import { authMiddleware } from './auth/middleware';
 import { logAudit } from './lib/audit';
+import { getUserTier, TIER_LIMITS } from './lib/tiers';
 
 export { SignalingRoom } from './signaling/room';
 
@@ -124,6 +125,28 @@ app.post('/v1/invites/:token/accept', authMiddleware, async (c) => {
 
   if (isOwner) {
     return c.json({ network_id: invite.network_id, network_name: network.name, role: 'owner' });
+  }
+
+  // Enforce member limit based on the network owner's tier
+  const networkOwner = await c.env.DB.prepare('SELECT user_id FROM networks WHERE id = ?')
+    .bind(invite.network_id)
+    .first<{ user_id: string }>();
+
+  if (networkOwner) {
+    const [ownerTier, memberCount] = await Promise.all([
+      getUserTier(c.env.DB, networkOwner.user_id),
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM network_members WHERE network_id = ?')
+        .bind(invite.network_id)
+        .first<{ count: number }>(),
+    ]);
+    const memberLimit = TIER_LIMITS[ownerTier].members;
+    // +1 for the owner themselves; memberCount is non-owner members
+    if (memberLimit !== Infinity && (memberCount?.count ?? 0) + 1 >= memberLimit) {
+      return c.json({
+        error: `This network has reached its member limit (${memberLimit}). The owner must upgrade to add more members.`,
+        upgrade_required: true,
+      }, 403);
+    }
   }
 
   const memberId = crypto.randomUUID();

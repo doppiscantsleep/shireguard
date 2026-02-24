@@ -13,16 +13,18 @@ const (
 )
 
 type Config struct {
-	APIURL       string `json:"api_url"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	DeviceID     string `json:"device_id"`
-	DeviceName   string `json:"device_name"`
-	NetworkID    string `json:"network_id"`
-	PrivateKey   string `json:"private_key"`
-	PublicKey    string `json:"public_key"`
-	AssignedIP   string `json:"assigned_ip"`
-	Email        string `json:"email"`
+	APIURL          string   `json:"api_url"`
+	AccessToken     string   `json:"access_token"`
+	RefreshToken    string   `json:"refresh_token"`
+	DeviceID        string   `json:"device_id"`
+	DeviceName      string   `json:"device_name"`
+	NetworkID       string   `json:"network_id"`
+	PrivateKey      string   `json:"private_key"`
+	PublicKey       string   `json:"public_key"`
+	AssignedIP      string   `json:"assigned_ip"`
+	Email           string   `json:"email"`
+	AcceptRoutes    bool     `json:"accept_routes"`
+	AdvertiseRoutes []string `json:"advertise_routes,omitempty"`
 }
 
 func Dir() (string, error) {
@@ -117,4 +119,6 @@ func (c *Config) Clear() {
 	c.PublicKey = ""
 	c.AssignedIP = ""
 	c.Email = ""
+	c.AcceptRoutes = false
+	c.AdvertiseRoutes = nil
 }

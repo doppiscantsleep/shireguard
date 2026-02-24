@@ -108,15 +108,59 @@ type Network struct {
 }
 
 type Peer struct {
-	ID         string  `json:"id"`
-	Name       string  `json:"name"`
-	Platform   string  `json:"platform"`
-	PublicKey  string  `json:"public_key"`
-	AssignedIP string  `json:"assigned_ip"`
-	Endpoint   *string `json:"endpoint"`
-	Online     bool    `json:"online"`
-	RelayHost  string  `json:"relay_host,omitempty"`
-	RelayPort  int     `json:"relay_port,omitempty"`
+	ID               string   `json:"id"`
+	Name             string   `json:"name"`
+	Platform         string   `json:"platform"`
+	PublicKey        string   `json:"public_key"`
+	AssignedIP       string   `json:"assigned_ip"`
+	Endpoint         *string  `json:"endpoint"`
+	Online           bool     `json:"online"`
+	RelayHost        string   `json:"relay_host,omitempty"`
+	RelayPort        int      `json:"relay_port,omitempty"`
+	AdvertisedRoutes []string `json:"advertised_routes,omitempty"`
+}
+
+// AdvertisedRoute represents a subnet route advertisement.
+type AdvertisedRoute struct {
+	ID          string `json:"id"`
+	NetworkID   string `json:"network_id"`
+	DeviceID    string `json:"device_id"`
+	CIDR        string `json:"cidr"`
+	Status      string `json:"status"`
+	Description string `json:"description"`
+	CreatedAt   string `json:"created_at"`
+}
+
+// AdvertiseRoute tells the control plane this device wants to advertise a subnet.
+// Returns the created route. A 409 means the route is already advertised.
+func (c *Client) AdvertiseRoute(networkID, deviceID, cidr, description string) (*AdvertisedRoute, error) {
+	body := map[string]string{
+		"device_id":   deviceID,
+		"cidr":        cidr,
+		"description": description,
+	}
+	var resp AdvertisedRoute
+	if err := c.do("POST", fmt.Sprintf("/v1/networks/%s/routes", networkID), body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ListRoutes returns advertised routes for the network.
+func (c *Client) ListRoutes(networkID string) ([]AdvertisedRoute, error) {
+	var resp struct {
+		Routes []AdvertisedRoute `json:"routes"`
+	}
+	if err := c.do("GET", fmt.Sprintf("/v1/networks/%s/routes", networkID), nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Routes, nil
+}
+
+// DeleteRoute removes an advertised route by ID.
+func (c *Client) DeleteRoute(networkID, routeID string) error {
+	var resp struct{}
+	return c.do("DELETE", fmt.Sprintf("/v1/networks/%s/routes/%s", networkID, routeID), nil, &resp)
 }
 
 // RelayRegistration holds the result of registering this device with the relay

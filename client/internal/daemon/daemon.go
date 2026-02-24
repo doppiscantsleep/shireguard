@@ -122,6 +122,16 @@ func (d *Daemon) Run(ctx context.Context) error {
 		slog.Error("initial heartbeat failed", "err", err)
 	}
 
+	// 4b. Sync advertised routes and enable IP forwarding if needed
+	if len(d.cfg.AdvertiseRoutes) > 0 {
+		if err := wg.EnableForwarding(); err != nil {
+			slog.Error("failed to enable IP forwarding", "err", err)
+		} else {
+			slog.Info("IP forwarding enabled for subnet routing")
+		}
+		d.syncAdvertisedRoutes()
+	}
+
 	// 5. Register with relay and watch for failures (best-effort)
 	go d.relayManager(ctx)
 
@@ -591,6 +601,15 @@ func (d *Daemon) syncPeers() error {
 			PublicKey:  p.PublicKey,
 			AllowedIPs: []string{p.AssignedIP + "/32"},
 		}
+		// If this device accepts routes, append approved subnet routes for this peer
+		// (skip 0.0.0.0/0 — exit node support is not yet implemented).
+		if d.cfg.AcceptRoutes {
+			for _, route := range p.AdvertisedRoutes {
+				if route != "0.0.0.0/0" {
+					pc.AllowedIPs = append(pc.AllowedIPs, route)
+				}
+			}
+		}
 		// Preserve relay endpoint if currently active for this peer
 		if usingRelaySnapshot[p.PublicKey] && d.relayHost != "" && d.relayPort != 0 {
 			pc.Endpoint = d.sharedRelayEndpoint(p)
@@ -604,6 +623,26 @@ func (d *Daemon) syncPeers() error {
 		return fmt.Errorf("updating peers in tunnel: %w", err)
 	}
 	return nil
+}
+
+// syncAdvertisedRoutes ensures all locally-configured routes are advertised to
+// the control plane. Idempotent — 409 (already exists) is silently ignored.
+func (d *Daemon) syncAdvertisedRoutes() {
+	if len(d.cfg.AdvertiseRoutes) == 0 {
+		return
+	}
+	for _, cidr := range d.cfg.AdvertiseRoutes {
+		_, err := d.client.AdvertiseRoute(d.cfg.NetworkID, d.cfg.DeviceID, cidr, "")
+		if err != nil {
+			if apiErr, ok := err.(*api.APIError); ok && apiErr.Status == 409 {
+				slog.Debug("route already advertised", "cidr", cidr)
+				continue
+			}
+			slog.Error("failed to advertise route", "cidr", cidr, "err", err)
+		} else {
+			slog.Info("advertised route (pending approval)", "cidr", cidr)
+		}
+	}
 }
 
 func (d *Daemon) storePeers(peers []api.Peer) {
@@ -682,6 +721,13 @@ func (d *Daemon) buildTunnelConfig(peers []api.Peer) *wg.TunnelConfig {
 		pc := wg.PeerConfig{
 			PublicKey:  p.PublicKey,
 			AllowedIPs: []string{p.AssignedIP + "/32"},
+		}
+		if d.cfg.AcceptRoutes {
+			for _, route := range p.AdvertisedRoutes {
+				if route != "0.0.0.0/0" {
+					pc.AllowedIPs = append(pc.AllowedIPs, route)
+				}
+			}
 		}
 		if p.Endpoint != nil {
 			pc.Endpoint = *p.Endpoint

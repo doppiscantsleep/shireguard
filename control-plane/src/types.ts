@@ -121,6 +121,21 @@ export interface AuditEntry {
   created_at: string;
 }
 
+export interface AdvertisedRoute {
+  id: string;
+  network_id: string;
+  device_id: string;
+  cidr: string;
+  status: 'pending' | 'approved' | 'rejected';
+  description: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+  // Joined fields
+  device_name?: string;
+  device_ip?: string;
+}
+
 export interface JWTPayload {
   sub: string;
   email: string;

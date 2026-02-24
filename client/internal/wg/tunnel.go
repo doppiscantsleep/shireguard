@@ -363,6 +363,48 @@ func parsePeerStats(ipcOutput string) map[string]PeerStat {
 	return stats
 }
 
+// EnableForwarding enables IPv4 forwarding on the host OS. Required when this
+// device advertises subnet routes so the kernel can forward traffic between the
+// WireGuard interface and the local network.
+func EnableForwarding() error {
+	switch runtime.GOOS {
+	case "darwin":
+		return run("sysctl", "-w", "net.inet.ip.forwarding=1")
+	case "linux":
+		return run("sysctl", "-w", "net.ipv4.ip_forward=1")
+	default:
+		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+}
+
+// AddSubnetRoute adds an OS-level route for a subnet through the WireGuard
+// interface so the kernel knows to forward traffic received on the tunnel.
+// On Linux this is redundant (WireGuard handles it via AllowedIPs) but is
+// included for symmetry.
+func AddSubnetRoute(ifName, cidr string) error {
+	switch runtime.GOOS {
+	case "darwin":
+		return run("route", "-n", "add", "-net", cidr, "-interface", ifName)
+	case "linux":
+		return run("ip", "route", "add", cidr, "dev", ifName)
+	default:
+		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+}
+
+// RemoveSubnetRoute removes an OS-level route added by AddSubnetRoute.
+// Called on tunnel teardown.
+func RemoveSubnetRoute(ifName, cidr string) error {
+	switch runtime.GOOS {
+	case "darwin":
+		return run("route", "-n", "delete", "-net", cidr, "-interface", ifName)
+	case "linux":
+		return run("ip", "route", "del", cidr, "dev", ifName)
+	default:
+		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+}
+
 // hexToBase64 converts a 64-char hex WireGuard key to base64.
 func hexToBase64(hexKey string) string {
 	b, err := hex.DecodeString(hexKey)

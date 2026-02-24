@@ -7,6 +7,7 @@ import { networks } from './api/networks';
 import { metrics } from './api/metrics';
 import { relays } from './api/relays';
 import { activity } from './api/activity';
+import { networkRoutes } from './api/routes';
 import { authMiddleware } from './auth/middleware';
 import { logAudit } from './lib/audit';
 import { getUserTier, TIER_LIMITS } from './lib/tiers';
@@ -70,6 +71,7 @@ app.get('/install.sh', (c) => {
 // API routes
 app.route('/v1/auth', auth);
 app.route('/v1/devices', devices);
+app.route('/v1/networks', networkRoutes); // /:networkId/routes — before networks for specificity
 app.route('/v1/networks', networks);
 app.route('/v1/metrics', metrics);
 app.route('/v1/relays', relays);

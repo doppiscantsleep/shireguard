@@ -53,7 +53,11 @@ func main() {
 	root.PersistentFlags().StringVar(&cfg.APIURL, "api-url", cfg.APIURL, "Control plane API URL")
 	root.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose (debug) logging")
 
-	root.AddCommand(loginCmd(), registerDeviceCmd(), upCmd(), downCmd(), statusCmd(), devicesCmd(), logoutCmd(), installCmd(), installServiceCmd())
+	root.AddCommand(
+		loginCmd(), registerDeviceCmd(), upCmd(), downCmd(), statusCmd(),
+		devicesCmd(), logoutCmd(), installCmd(), installServiceCmd(),
+		advertiseRouteCmd(), withdrawRouteCmd(), acceptRoutesCmd(), routesCmd(),
+	)
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -741,6 +745,161 @@ WantedBy=multi-user.target
 			fmt.Println("Start now:      sudo systemctl start shireguard")
 			fmt.Println("Check status:   systemctl status shireguard")
 			fmt.Println("Follow logs:    journalctl -u shireguard -f")
+			return nil
+		},
+	}
+}
+
+func advertiseRouteCmd() *cobra.Command {
+	var description string
+	cmd := &cobra.Command{
+		Use:   "advertise-route <cidr>",
+		Short: "Advertise a local subnet through the mesh (requires admin approval)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !cfg.IsLoggedIn() {
+				return fmt.Errorf("not logged in — run 'shireguard login' first")
+			}
+			if !cfg.IsRegistered() {
+				return fmt.Errorf("device not registered — run 'shireguard register-device' first")
+			}
+			cidr := args[0]
+			if _, _, err := net.ParseCIDR(cidr); err != nil {
+				return fmt.Errorf("invalid CIDR: %w", err)
+			}
+			client := newClient()
+			route, err := client.AdvertiseRoute(cfg.NetworkID, cfg.DeviceID, cidr, description)
+			if err != nil {
+				return err
+			}
+			// Persist in local config so daemon re-advertises on restart
+			found := false
+			for _, r := range cfg.AdvertiseRoutes {
+				if r == cidr {
+					found = true
+					break
+				}
+			}
+			if !found {
+				cfg.AdvertiseRoutes = append(cfg.AdvertiseRoutes, cidr)
+				if err := cfg.Save(); err != nil {
+					return err
+				}
+			}
+			fmt.Printf("Route advertised: %s (status: %s)\n", route.CIDR, route.Status)
+			if route.Status == "pending" {
+				fmt.Println("A network owner or admin must approve this route before peers can use it.")
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&description, "description", "", "Optional description")
+	return cmd
+}
+
+func withdrawRouteCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "withdraw-route <cidr>",
+		Short: "Stop advertising a subnet route",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !cfg.IsLoggedIn() {
+				return fmt.Errorf("not logged in — run 'shireguard login' first")
+			}
+			if !cfg.IsRegistered() {
+				return fmt.Errorf("device not registered — run 'shireguard register-device' first")
+			}
+			cidr := args[0]
+			client := newClient()
+			routes, err := client.ListRoutes(cfg.NetworkID)
+			if err != nil {
+				return err
+			}
+			var routeID string
+			for _, r := range routes {
+				if r.CIDR == cidr && r.DeviceID == cfg.DeviceID {
+					routeID = r.ID
+					break
+				}
+			}
+			if routeID == "" {
+				return fmt.Errorf("route %s not found for this device", cidr)
+			}
+			if err := client.DeleteRoute(cfg.NetworkID, routeID); err != nil {
+				return err
+			}
+			// Remove from local config
+			var kept []string
+			for _, r := range cfg.AdvertiseRoutes {
+				if r != cidr {
+					kept = append(kept, r)
+				}
+			}
+			cfg.AdvertiseRoutes = kept
+			if err := cfg.Save(); err != nil {
+				return err
+			}
+			fmt.Printf("Route %s withdrawn.\n", cidr)
+			return nil
+		},
+	}
+}
+
+func acceptRoutesCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "accept-routes",
+		Short: "Toggle acceptance of peer-advertised subnet routes",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg.AcceptRoutes = !cfg.AcceptRoutes
+			if err := cfg.Save(); err != nil {
+				return err
+			}
+			if cfg.AcceptRoutes {
+				fmt.Println("Subnet route acceptance: ENABLED")
+				fmt.Println("Approved peer routes will be added to AllowedIPs on next sync.")
+			} else {
+				fmt.Println("Subnet route acceptance: DISABLED")
+				fmt.Println("Peer routes will be removed from AllowedIPs on next sync.")
+			}
+			return nil
+		},
+	}
+}
+
+func routesCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "routes",
+		Short: "List advertised subnet routes in the network",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !cfg.IsLoggedIn() {
+				return fmt.Errorf("not logged in — run 'shireguard login' first")
+			}
+			if !cfg.IsRegistered() {
+				return fmt.Errorf("device not registered — run 'shireguard register-device' first")
+			}
+			client := newClient()
+			routes, err := client.ListRoutes(cfg.NetworkID)
+			if err != nil {
+				return err
+			}
+			if len(routes) == 0 {
+				fmt.Println("No advertised routes.")
+				fmt.Printf("Accept routes: %v\n", cfg.AcceptRoutes)
+				return nil
+			}
+			fmt.Printf("%-20s %-10s %-16s %s\n", "CIDR", "STATUS", "DEVICE", "DESCRIPTION")
+			for _, r := range routes {
+				desc := r.Description
+				if desc == "" {
+					desc = "—"
+				}
+				deviceLabel := r.DeviceID[:8] + "..."
+				if r.DeviceID == cfg.DeviceID {
+					deviceLabel = "(this device)"
+				}
+				fmt.Printf("%-20s %-10s %-16s %s\n", r.CIDR, r.Status, deviceLabel, desc)
+			}
+			fmt.Printf("\nAccept routes: %v\n", cfg.AcceptRoutes)
 			return nil
 		},
 	}

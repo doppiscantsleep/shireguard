@@ -133,10 +133,26 @@ networks.get('/:id/peers', async (c) => {
     .bind(networkId)
     .all();
 
+  // Fetch approved routes and group by device_id
+  const routeResult = await c.env.DB.prepare(
+    `SELECT device_id, cidr FROM advertised_routes
+     WHERE network_id = ? AND status = 'approved' ORDER BY device_id`
+  )
+    .bind(networkId)
+    .all<{ device_id: string; cidr: string }>();
+
+  const routesByDevice = new Map<string, string[]>();
+  for (const r of routeResult.results) {
+    const existing = routesByDevice.get(r.device_id) ?? [];
+    existing.push(r.cidr);
+    routesByDevice.set(r.device_id, existing);
+  }
+
   const now = Date.now();
   const peers = deviceResult.results.map((d: Record<string, unknown>) => ({
     ...d,
     online: d.last_seen_at ? now - new Date(d.last_seen_at as string).getTime() < 120_000 : false,
+    advertised_routes: routesByDevice.get(d.id as string) ?? [],
   }));
 
   return c.json({ network, peers });

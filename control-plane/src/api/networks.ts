@@ -212,9 +212,11 @@ networks.get('/:id/members', async (c) => {
   if (!network) return c.json({ error: 'Network not found' }, 404);
 
   const members = await c.env.DB.prepare(`
-    SELECT nm.id, nm.network_id, nm.user_id, u.email, nm.role, nm.invited_by, nm.created_at
+    SELECT nm.id, nm.network_id, nm.user_id, u.email, nm.role, nm.invited_by, nm.created_at,
+           inviter.email AS invited_by_email
     FROM network_members nm
     JOIN users u ON u.id = nm.user_id
+    LEFT JOIN users inviter ON inviter.id = nm.invited_by
     WHERE nm.network_id = ?
     ORDER BY nm.created_at
   `)
@@ -302,9 +304,9 @@ networks.post('/:id/invites', async (c) => {
   const expiresAt = new Date(Date.now() + expiresHours * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 19);
 
   await c.env.DB.prepare(
-    'INSERT INTO network_invites (id, network_id, created_by, role, token, max_uses, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO network_invites (id, network_id, created_by, role, token, max_uses, expires_at, to_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   )
-    .bind(inviteId, networkId, userId, inviteRole, token, maxUses, expiresAt)
+    .bind(inviteId, networkId, userId, inviteRole, token, maxUses, expiresAt, toEmail)
     .run();
 
   const inviteUrl = `https://shireguard.com/?invite=${token}`;

@@ -907,6 +907,9 @@ body{
 .member-email{font-family:var(--font-mono);font-size:.78rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .member-you{font-size:.65rem;font-family:var(--font-mono);color:var(--text-muted);flex-shrink:0}
 .member-actions{display:flex;align-items:center;gap:.35rem;flex-shrink:0}
+.member-meta{font-size:.68rem;color:var(--text-muted);margin-top:.15rem;font-family:var(--font-mono)}
+.member-row.member-pending{opacity:.65}
+.badge-pending{display:inline-flex;align-items:center;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:.15rem .4rem;border-radius:3px;background:rgba(125,125,125,.2);color:var(--text-muted);border:1px solid var(--border);flex-shrink:0}
 
 /* ── Invite modal extras ── */
 .invite-url-box{
@@ -3384,34 +3387,45 @@ async function loadUsers() {
   emptyNet.style.display = 'none';
   document.getElementById('users-list').innerHTML = '<div style="padding:1.5rem;text-align:center"><span class="spinner"></span></div>';
   try {
-    const data = await api('GET', `/v1/networks/${networkId}/members`);
-    if (!data) return;
-    usersNetworkRole = data.caller_role;
-    const members = data.members || [];
+    const [membersData, invitesData] = await Promise.all([
+      api('GET', `/v1/networks/${networkId}/members`),
+      api('GET', `/v1/networks/${networkId}/invites`).catch(() => null),
+    ]);
+    if (!membersData) return;
+    usersNetworkRole = membersData.caller_role;
+    const members = membersData.members || [];
+    const pendingInvites = (invitesData?.invites || []);
     const canManage = usersNetworkRole === 'owner' || usersNetworkRole === 'admin';
 
     document.getElementById('users-invite-btn').style.display = canManage ? '' : 'none';
-    document.getElementById('users-count').textContent = members.length ? `(${members.length})` : '';
+    const totalCount = members.length + (canManage ? pendingInvites.length : 0);
+    document.getElementById('users-count').textContent = totalCount ? `(${totalCount})` : '';
 
     const empty = document.getElementById('users-empty');
     const list = document.getElementById('users-list');
-    if (!members.length) { list.innerHTML = ''; empty.style.display = ''; return; }
+    if (!members.length && !pendingInvites.length) { list.innerHTML = ''; empty.style.display = ''; return; }
     empty.style.display = 'none';
 
-    list.innerHTML = members.map(m => {
+    const memberRows = members.map(m => {
       const isSelf = m.email === userEmail;
       const canRemove = !isSelf && (
         (usersNetworkRole === 'owner' && m.role !== 'owner') ||
         (usersNetworkRole === 'admin' && m.role === 'member')
       );
       const canChangeRole = usersNetworkRole === 'owner' && m.role !== 'owner';
+      const inviteMeta = m.invited_by_email
+        ? `<div class="member-meta">Invited ${timeAgo(m.created_at)} by ${esc(m.invited_by_email)}</div>`
+        : '';
 
       return `
-        <div class="member-row" style="padding:.55rem 1rem">
+        <div class="member-row" style="padding:.55rem 1rem;align-items:center">
           <span class="member-online-dot ${m.online ? 'online' : 'offline'}" title="${m.online ? 'Connected' : 'Offline'}"></span>
-          <div class="member-identity" style="flex:1;min-width:0">
-            <span class="member-email" title="${esc(m.email)}">${esc(m.email)}</span>
-            ${isSelf ? '<span class="member-you">you</span>' : ''}
+          <div style="flex:1;min-width:0">
+            <div class="member-identity">
+              <span class="member-email" title="${esc(m.email)}">${esc(m.email)}</span>
+              ${isSelf ? '<span class="member-you">you</span>' : ''}
+            </div>
+            ${inviteMeta}
           </div>
           <span class="role-badge ${m.role}">${m.role}</span>
           <div class="member-actions">
@@ -3424,7 +3438,31 @@ async function loadUsers() {
             ${canRemove ? `<button class="btn btn-danger btn-sm" style="padding:.2rem .55rem" onclick="usersRemove('${networkId}','${m.user_id}')">Remove</button>` : ''}
           </div>
         </div>`;
-    }).join('');
+    });
+
+    // Pending invite rows (owners/admins only)
+    const pendingRows = canManage ? pendingInvites.map(inv => {
+      const label = inv.to_email ? esc(inv.to_email) : 'Invite link';
+      const usesLeft = inv.max_uses >= 1000 ? '∞' : `${inv.max_uses - inv.use_count}/${inv.max_uses} uses`;
+      return `
+        <div class="member-row member-pending" style="padding:.55rem 1rem;align-items:center">
+          <span class="member-online-dot offline" title="Pending"></span>
+          <div style="flex:1;min-width:0">
+            <div class="member-identity">
+              <span class="member-email" style="color:var(--text-muted)">${label}</span>
+            </div>
+            <div class="member-meta">Invited ${timeAgo(inv.created_at)} by ${esc(inv.created_by_email)} · ${usesLeft}</div>
+          </div>
+          <span class="role-badge ${inv.role}">${inv.role}</span>
+          <span class="badge-pending">pending</span>
+          <div class="member-actions">
+            <button class="btn btn-secondary btn-sm" style="padding:.2rem .55rem"
+              onclick="usersRevokeInvite('${networkId}','${inv.id}')">Revoke</button>
+          </div>
+        </div>`;
+    }) : [];
+
+    list.innerHTML = [...memberRows, ...pendingRows].join('');
   } catch (err) {
     document.getElementById('users-list').innerHTML = `<div style="padding:1rem;color:var(--red);font-size:.82rem">${esc(err?.message)}</div>`;
   }
@@ -3446,6 +3484,14 @@ async function usersRemove(networkId, memberId) {
       loadUsers();
     } catch (err) { toast(err.message, 'error'); }
   });
+}
+
+async function usersRevokeInvite(networkId, inviteId) {
+  try {
+    await api('DELETE', `/v1/networks/${networkId}/invites/${inviteId}`);
+    toast('Invite revoked', 'success');
+    loadUsers();
+  } catch (err) { toast(err.message, 'error'); }
 }
 
 function usersOpenInvite() {

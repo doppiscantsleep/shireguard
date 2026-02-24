@@ -36,6 +36,7 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 import dashboardHtml from './dashboard.html';
 import landingHtml from './landing.html';
 import docsHtml from './docs.html';
+import pricingHtml from './pricing.html';
 import installScript from '../../install.sh';
 import hobDoor from './hob_door.jpeg';
 
@@ -47,6 +48,9 @@ app.get('/dashboard', (c) => {
 });
 app.get('/docs', (c) => {
   return c.html(docsHtml);
+});
+app.get('/pricing', (c) => {
+  return c.html(pricingHtml);
 });
 app.get('/favicon.jpeg', (c) => {
   return c.body(hobDoor, 200, {

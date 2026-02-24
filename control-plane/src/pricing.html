@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pricing — Shireguard</title>
+<script>(function(){var t=localStorage.getItem('sg_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})()</script>
+<link rel="icon" type="image/jpeg" href="/favicon.jpeg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Lora:ital,wght@0,600;0,700;1,600&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg-root:#0c1508;
+  --bg-surface:#111c0e;
+  --bg-elevated:#182913;
+  --bg-input:#111c0e;
+  --border:#283d18;
+  --border-focus:#6db33a;
+  --text-primary:#e8dfbe;
+  --text-secondary:#8ca86d;
+  --text-muted:#4e6b38;
+  --accent:#7dc142;
+  --accent-dim:rgba(125,193,66,.13);
+  --amber:#d4a520;
+  --amber-dim:rgba(212,165,32,.13);
+  --red:#e05252;
+  --green:#5cb85c;
+  --blue:#5b8dd9;
+  --blue-dim:rgba(91,141,217,.13);
+  --bg-surface-rgb:17,28,14;
+  --font-mono:'IBM Plex Mono',monospace;
+  --font-sans:'Nunito',system-ui,sans-serif;
+  --font-display:'Lora',Georgia,serif;
+  --radius:3px;
+}
+
+[data-theme="light"]{
+  --bg-root:#f0e8cc;
+  --bg-surface:#f8f2e0;
+  --bg-surface-rgb:248,242,224;
+  --bg-elevated:#ece2c5;
+  --bg-input:#f8f2e0;
+  --border:#c8b47a;
+  --border-focus:#3d6b1f;
+  --text-primary:#261a08;
+  --text-secondary:#6b4c20;
+  --text-muted:#9a7a40;
+  --accent:#3d6b1f;
+  --accent-dim:rgba(61,107,31,.1);
+  --amber:#8a6800;
+  --amber-dim:rgba(138,104,0,.1);
+  --red:#8b1a1a;
+  --green:#2a6b2a;
+  --blue:#1a4a7a;
+  --blue-dim:rgba(26,74,122,.08);
+}
+
+[data-theme="dwarf"]{
+  --bg-root:#0c0907;
+  --bg-surface:#181008;
+  --bg-surface-rgb:24,16,8;
+  --bg-elevated:#211508;
+  --bg-input:#181008;
+  --border:#3d2010;
+  --border-focus:#b86010;
+  --text-primary:#dca840;
+  --text-secondary:#906828;
+  --text-muted:#583818;
+  --accent:#c06410;
+  --accent-dim:rgba(192,100,16,.15);
+  --amber:#e08818;
+  --green:#507038;
+  --blue:#485870;
+  --blue-dim:rgba(72,88,112,.13);
+}
+
+[data-theme="elven"]{
+  --bg-root:#050c14;
+  --bg-surface:#09141f;
+  --bg-surface-rgb:9,20,31;
+  --bg-elevated:#0d1c2a;
+  --bg-input:#09141f;
+  --border:#162c42;
+  --border-focus:#3e8ab0;
+  --text-primary:#b8d4e8;
+  --text-secondary:#5e8aaa;
+  --text-muted:#2c4c60;
+  --accent:#3e8ab0;
+  --accent-dim:rgba(62,138,176,.13);
+  --amber:#8ab0c8;
+  --green:#3a8060;
+  --blue:#4878c0;
+  --blue-dim:rgba(72,120,192,.13);
+}
+
+[data-theme="gondor"]{
+  --bg-root:#1a1d21;
+  --bg-surface:#22272e;
+  --bg-surface-rgb:34,39,46;
+  --bg-elevated:#2c3340;
+  --bg-input:#1e2329;
+  --border:#3d4a5c;
+  --border-focus:#8aabb8;
+  --text-primary:#e8ecf0;
+  --text-secondary:#a8b8c8;
+  --text-muted:#5a6a7a;
+  --accent:#8aabb8;
+  --accent-dim:rgba(138,171,184,.13);
+  --amber:#c9922a;
+  --amber-dim:rgba(201,146,42,.13);
+  --red:#c0393a;
+  --green:#4a8a5a;
+  --blue:#3a7aaa;
+  --blue-dim:rgba(58,122,170,.13);
+}
+
+[data-theme="rohan"]{
+  --bg-root:#1c1710;
+  --bg-surface:#241e14;
+  --bg-surface-rgb:36,30,20;
+  --bg-elevated:#2e2718;
+  --bg-input:#201b11;
+  --border:#4a3d22;
+  --border-focus:#c8a84a;
+  --text-primary:#f0d88a;
+  --text-secondary:#b89840;
+  --text-muted:#6a5428;
+  --accent:#c8a84a;
+  --accent-dim:rgba(200,168,74,.13);
+  --amber:#d4922a;
+  --amber-dim:rgba(212,146,42,.13);
+  --red:#b83a2a;
+  --green:#5a7830;
+  --blue:#4a6888;
+  --blue-dim:rgba(74,104,136,.13);
+}
+
+html{font-size:14px}
+body{
+  font-family:var(--font-sans);
+  background:var(--bg-root);
+  color:var(--text-primary);
+  line-height:1.5;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ── Background panorama ── */
+#bg-panorama{
+  position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+}
+#bg-panorama svg{width:100%;height:100%;opacity:.1}
+[data-theme="light"] #bg-panorama svg{opacity:.05;filter:brightness(.25) sepia(.6)}
+[data-theme="dwarf"] #bg-panorama svg{opacity:.13;filter:hue-rotate(-40deg) saturate(1.3)}
+[data-theme="elven"] #bg-panorama svg{opacity:.09;filter:hue-rotate(80deg) saturate(.85)}
+[data-theme="gondor"] #bg-panorama svg{opacity:.08;filter:hue-rotate(160deg) saturate(.6) brightness(.9)}
+[data-theme="rohan"] #bg-panorama svg{opacity:.11;filter:hue-rotate(-20deg) saturate(1.4) brightness(.95)}
+
+/* ── Layout ── */
+.landing-wrap{
+  position:relative;z-index:1;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+}
+
+/* ── Nav ── */
+.nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.9rem 2rem;border-bottom:1px solid var(--border);
+  background:rgba(var(--bg-surface-rgb),.7);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  position:sticky;top:0;z-index:50;
+}
+.nav-logo{
+  font-family:var(--font-display);font-size:1.15rem;font-weight:700;
+  color:var(--accent);font-style:italic;text-decoration:none;
+}
+.nav-logo span{color:var(--text-muted);font-weight:600;font-style:normal}
+.nav-right{display:flex;align-items:center;gap:.75rem}
+.nav-link{
+  font-family:var(--font-sans);font-size:.82rem;font-weight:600;
+  color:var(--text-secondary);text-decoration:none;
+  transition:color .15s;
+}
+.nav-link:hover{color:var(--text-primary)}
+.nav-link.active{color:var(--accent)}
+.btn-nav{
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.35rem .85rem;font-family:var(--font-sans);font-size:.82rem;
+  font-weight:600;cursor:pointer;border:1px solid var(--border);
+  background:transparent;color:var(--text-secondary);
+  text-decoration:none;border-radius:var(--radius);
+  transition:all .15s;
+}
+.btn-nav:hover{color:var(--text-primary);border-color:var(--text-muted)}
+.btn-nav-primary{
+  background:var(--accent);color:var(--bg-root);border-color:var(--accent);
+}
+.btn-nav-primary:hover{filter:brightness(1.08)}
+.btn-theme{
+  background:none;border:1px solid var(--border);color:var(--text-secondary);
+  padding:.3rem .65rem;cursor:pointer;font-size:.72rem;font-weight:500;
+  font-family:var(--font-sans);border-radius:var(--radius);transition:all .15s;white-space:nowrap;
+}
+.btn-theme:hover{color:var(--text-primary);border-color:var(--text-muted)}
+
+/* ── Footer ── */
+.landing-footer{
+  position:relative;z-index:1;
+  border-top:1px solid var(--border);
+  padding:1.25rem 2rem;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:1rem;flex-wrap:wrap;
+  background:rgba(var(--bg-surface-rgb),.5);
+}
+.footer-copy{font-size:.75rem;color:var(--text-muted);font-family:var(--font-mono)}
+.footer-links{display:flex;gap:1rem}
+.footer-link{font-size:.75rem;color:var(--text-muted);text-decoration:none;font-family:var(--font-mono);transition:color .15s}
+.footer-link:hover{color:var(--accent)}
+
+/* ── Pricing page ── */
+.pricing-header{
+  text-align:center;
+  padding:4rem 1.5rem 2rem;
+  position:relative;
+}
+.pricing-header::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 700px 400px at 50% 30%,rgba(125,193,66,.07),transparent),
+    radial-gradient(ellipse 400px 500px at 20% 80%,rgba(212,165,32,.05),transparent);
+}
+[data-theme="light"] .pricing-header::before{
+  background:
+    radial-gradient(ellipse 700px 400px at 50% 30%,rgba(61,107,31,.09),transparent),
+    radial-gradient(ellipse 400px 500px at 20% 80%,rgba(212,165,32,.07),transparent);
+}
+[data-theme="dwarf"] .pricing-header::before{
+  background:
+    radial-gradient(ellipse 600px 500px at 50% 30%,rgba(192,100,16,.1),transparent),
+    radial-gradient(ellipse 400px 400px at 80% 80%,rgba(192,40,24,.06),transparent);
+}
+[data-theme="elven"] .pricing-header::before{
+  background:
+    radial-gradient(ellipse 700px 350px at 50% 25%,rgba(62,138,176,.09),transparent),
+    radial-gradient(ellipse 400px 500px at 80% 80%,rgba(72,120,192,.06),transparent);
+}
+.pricing-header-content{position:relative}
+.pricing-eyebrow{
+  display:inline-block;
+  font-family:var(--font-mono);font-size:.7rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--text-muted);
+  margin-bottom:.75rem;
+}
+.pricing-title{
+  font-family:var(--font-display);font-size:clamp(1.6rem,4vw,2.4rem);
+  font-weight:700;color:var(--text-primary);font-style:italic;
+  letter-spacing:-.02em;line-height:1.15;margin-bottom:.6rem;
+}
+.pricing-subtitle{
+  font-size:clamp(.88rem,2vw,1rem);color:var(--text-secondary);
+  line-height:1.6;max-width:520px;margin:0 auto;
+  font-family:var(--font-display);font-style:italic;
+}
+
+/* ── Cards grid ── */
+.pricing-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:1.25rem;
+  max-width:960px;
+  margin:0 auto;
+  padding:0 1.5rem 3rem;
+  position:relative;
+}
+
+.pricing-card{
+  background:var(--bg-surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:1.75rem 1.5rem 1.5rem;
+  display:flex;flex-direction:column;
+  transition:border-color .2s;
+}
+.pricing-card:hover{
+  border-color:var(--text-muted);
+}
+.pricing-card.featured{
+  border-color:var(--accent);
+  box-shadow:0 0 0 1px var(--accent),0 4px 24px rgba(0,0,0,.2);
+  position:relative;
+}
+.pricing-card.featured::before{
+  content:'Most popular';
+  position:absolute;top:0;left:50%;transform:translate(-50%,-50%);
+  font-family:var(--font-mono);font-size:.62rem;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;
+  color:var(--bg-root);background:var(--accent);
+  padding:.2rem .75rem;border-radius:var(--radius);
+  white-space:nowrap;
+}
+
+.card-tier{
+  font-family:var(--font-display);font-size:1.1rem;font-weight:700;
+  color:var(--text-primary);font-style:italic;
+  margin-bottom:.25rem;
+}
+.card-price{
+  display:flex;align-items:baseline;gap:.2rem;
+  margin-bottom:.15rem;
+}
+.card-price-amount{
+  font-family:var(--font-mono);font-size:2rem;font-weight:600;
+  color:var(--text-primary);letter-spacing:-.03em;
+}
+.card-price-period{
+  font-family:var(--font-mono);font-size:.75rem;
+  color:var(--text-muted);
+}
+.card-price-note{
+  font-family:var(--font-mono);font-size:.68rem;
+  color:var(--text-muted);margin-bottom:1.25rem;
+  min-height:1.1em;
+}
+
+.card-features{
+  list-style:none;flex:1;
+  margin-bottom:1.5rem;
+  display:flex;flex-direction:column;gap:.45rem;
+}
+.card-features li{
+  display:flex;align-items:flex-start;gap:.5rem;
+  font-size:.82rem;color:var(--text-secondary);
+  line-height:1.45;
+}
+.card-features .check{
+  flex-shrink:0;
+  color:var(--accent);
+  font-size:.82rem;
+  line-height:1.45;
+  width:1em;text-align:center;
+}
+.card-features .dash{
+  flex-shrink:0;
+  color:var(--text-muted);
+  font-size:.82rem;
+  line-height:1.45;
+  width:1em;text-align:center;
+}
+
+.card-cta{
+  display:block;width:100%;
+  padding:.6rem 1rem;
+  font-family:var(--font-sans);font-size:.85rem;font-weight:600;
+  text-align:center;text-decoration:none;
+  border-radius:var(--radius);
+  cursor:pointer;
+  transition:all .15s;
+}
+.card-cta-secondary{
+  background:transparent;
+  color:var(--text-secondary);
+  border:1px solid var(--border);
+}
+.card-cta-secondary:hover{
+  color:var(--text-primary);
+  border-color:var(--text-muted);
+}
+.card-cta-primary{
+  background:var(--accent);
+  color:var(--bg-root);
+  border:1px solid var(--accent);
+}
+.card-cta-primary:hover{
+  filter:brightness(1.08);
+  box-shadow:0 0 0 2px rgba(125,193,66,.3);
+}
+
+/* ── FAQ ── */
+.faq-section{
+  max-width:680px;
+  margin:0 auto;
+  padding:0 1.5rem 3rem;
+}
+.faq-heading{
+  font-family:var(--font-display);font-size:1.25rem;font-weight:700;
+  color:var(--text-primary);font-style:italic;
+  text-align:center;margin-bottom:1.75rem;
+}
+.faq-item{
+  border-bottom:1px solid var(--border);
+}
+.faq-item:first-child{
+  border-top:1px solid var(--border);
+}
+.faq-question{
+  width:100%;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:1rem;
+  padding:.85rem 0;
+  background:none;border:none;cursor:pointer;
+  font-family:var(--font-sans);font-size:.88rem;font-weight:600;
+  color:var(--text-primary);text-align:left;
+  transition:color .15s;
+}
+.faq-question:hover{color:var(--accent)}
+.faq-question:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;border-radius:2px;
+}
+.faq-chevron{
+  flex-shrink:0;
+  width:16px;height:16px;
+  color:var(--text-muted);
+  transition:transform .2s ease;
+}
+.faq-item.open .faq-chevron{
+  transform:rotate(180deg);
+}
+.faq-answer{
+  overflow:hidden;
+  max-height:0;
+  transition:max-height .25s ease;
+}
+.faq-answer-inner{
+  padding:0 0 1rem;
+  font-size:.84rem;color:var(--text-secondary);
+  line-height:1.75;
+}
+
+/* ── Enterprise callout ── */
+.enterprise-callout{
+  text-align:center;
+  padding:2rem 1.5rem 3.5rem;
+  max-width:600px;
+  margin:0 auto;
+}
+.enterprise-callout p{
+  font-size:.84rem;color:var(--text-muted);
+  line-height:1.7;
+}
+.enterprise-callout a{
+  color:var(--accent);text-decoration:none;
+  transition:color .15s;
+}
+.enterprise-callout a:hover{
+  text-decoration:underline;
+}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  .pricing-grid{
+    grid-template-columns:1fr;
+    max-width:400px;
+  }
+  /* Re-order so featured card appears first on mobile */
+  .pricing-card.featured{order:-1}
+}
+@media(max-width:540px){
+  .nav{padding:.75rem 1rem}
+  .pricing-header{padding:3rem 1rem 1.5rem}
+  .pricing-grid{padding:0 1rem 2.5rem}
+  .faq-section{padding:0 1rem 2.5rem}
+  .enterprise-callout{padding:1.5rem 1rem 3rem}
+  .landing-footer{flex-direction:column;text-align:center}
+}
+</style>
+</head>
+<body>
+
+<!-- Background panorama -->
+<div id="bg-panorama" aria-hidden="true"><svg viewBox="0 0 1600 700" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+<defs>
+  <radialGradient id="door-glow" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#c8b878" stop-opacity=".95"/>
+    <stop offset="45%" stop-color="#c8b878" stop-opacity=".45"/>
+    <stop offset="100%" stop-color="#c8b878" stop-opacity="0"/>
+  </radialGradient>
+  <mask id="crescent"><rect width="1600" height="700" fill="white"/><circle cx="1166" cy="64" r="25" fill="black"/></mask>
+</defs>
+<circle cx="42" cy="28" r="1.3" fill="#c8b878" opacity=".65"/><circle cx="108" cy="18" r="1.0" fill="#c8b878" opacity=".55"/>
+<circle cx="185" cy="42" r="1.4" fill="#c8b878" opacity=".6"/><circle cx="270" cy="14" r="1.1" fill="#c8b878" opacity=".5"/>
+<circle cx="345" cy="35" r="1.2" fill="#c8b878" opacity=".58"/><circle cx="490" cy="22" r="1.0" fill="#c8b878" opacity=".52"/>
+<circle cx="580" cy="52" r="1.3" fill="#c8b878" opacity=".6"/><circle cx="680" cy="18" r="1.1" fill="#c8b878" opacity=".55"/>
+<circle cx="790" cy="38" r="1.2" fill="#c8b878" opacity=".5"/><circle cx="895" cy="12" r="1.4" fill="#c8b878" opacity=".65"/>
+<circle cx="970" cy="46" r="1.0" fill="#c8b878" opacity=".55"/><circle cx="1240" cy="42" r="1.1" fill="#c8b878" opacity=".5"/>
+<circle cx="1385" cy="20" r="1.3" fill="#c8b878" opacity=".58"/><circle cx="1520" cy="38" r="1.0" fill="#c8b878" opacity=".55"/>
+<circle cx="1152" cy="70" r="29" fill="#c8b878" opacity=".78" mask="url(#crescent)"/>
+<path d="M0 310 L0 230 L55 200 L105 228 L170 188 L235 220 L290 178 L355 215 L410 170 L470 205 L535 185 L595 216 L655 168 L715 204 L775 182 L835 212 L895 188 L955 225 L1015 192 L1075 222 L1135 175 L1195 207 L1255 190 L1315 225 L1370 202 L1425 232 L1485 208 L1540 232 L1600 212 L1600 310 Z" fill="#c8b878" opacity=".09"/>
+<path d="M0 420 L0 328 L65 295 L130 330 L210 275 L290 318 L368 288 L448 325 L528 294 L608 332 L688 302 L768 336 L848 308 L928 342 L1008 314 L1088 348 L1158 288 L1238 334 L1318 312 L1398 344 L1478 322 L1548 346 L1600 334 L1600 420 Z" fill="#c8b878" opacity=".16"/>
+<path d="M0 560 Q150 550 310 543 Q480 536 625 540 Q760 543 885 540 Q975 535 1062 516 Q1118 502 1155 485 Q1175 474 1202 472 Q1229 474 1249 485 Q1286 502 1362 530 Q1480 554 1600 558 L1600 700 L0 700 Z" fill="#c8b878" opacity=".26"/>
+<ellipse cx="1202" cy="480" rx="70" ry="64" fill="url(#door-glow)" opacity=".38"/>
+<circle cx="1202" cy="484" r="42" fill="#c8b878" opacity=".38"/>
+<circle cx="1202" cy="484" r="36" fill="#c8b878" opacity=".72"/>
+<circle cx="1202" cy="484" r="30" fill="#c8b878" opacity=".32"/>
+<line x1="1166" y1="484" x2="1238" y2="484" stroke="#c8b878" stroke-width="1.5" opacity=".38"/>
+<line x1="1202" y1="448" x2="1202" y2="520" stroke="#c8b878" stroke-width="1.5" opacity=".38"/>
+<circle cx="1190" cy="484" r="4.5" fill="#c8b878" opacity=".88"/>
+</svg></div>
+
+<div class="landing-wrap">
+
+  <!-- Nav -->
+  <nav class="nav">
+    <a href="/" class="nav-logo">Shire<span>guard</span></a>
+    <div class="nav-right">
+      <a href="/pricing" class="nav-link active">Pricing</a>
+      <button class="btn-theme" onclick="toggleTheme()"><span class="theme-name">Shire Dark</span></button>
+      <a href="/docs" class="btn-nav" title="Documentation" aria-label="Documentation">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V5L9 1z"/><polyline points="9 1 9 5 13 5"/><line x1="5" y1="9" x2="11" y2="9"/><line x1="5" y1="12" x2="9" y2="12"/></svg>
+        Docs
+      </a>
+    </div>
+  </nav>
+
+  <!-- Pricing header -->
+  <section class="pricing-header">
+    <div class="pricing-header-content">
+      <div class="pricing-eyebrow">Simple, transparent pricing</div>
+      <h1 class="pricing-title">Choose your plan</h1>
+      <p class="pricing-subtitle">Start free with up to 5 devices. Upgrade when you need more.</p>
+    </div>
+  </section>
+
+  <!-- Pricing cards -->
+  <div class="pricing-grid">
+
+    <!-- Free -->
+    <div class="pricing-card">
+      <div class="card-tier">Free</div>
+      <div class="card-price">
+        <span class="card-price-amount">$0</span>
+        <span class="card-price-period">/mo</span>
+      </div>
+      <div class="card-price-note">Free forever</div>
+      <ul class="card-features">
+        <li><span class="check" aria-hidden="true">&#10003;</span> 5 devices</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> 1 network</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> 5 members</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> Best-effort relay</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> 7-day metrics</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> Community support</li>
+        <li><span class="dash" aria-hidden="true">&mdash;</span><span style="color:var(--text-muted)">Audit log</span></li>
+        <li><span class="dash" aria-hidden="true">&mdash;</span><span style="color:var(--text-muted)">ACL / Gatekeep</span></li>
+      </ul>
+      <a href="/dashboard" class="card-cta card-cta-secondary">Get started free</a>
+    </div>
+
+    <!-- Solo (featured) -->
+    <div class="pricing-card featured">
+      <div class="card-tier">Solo</div>
+      <div class="card-price">
+        <span class="card-price-amount">$7</span>
+        <span class="card-price-period">/mo</span>
+      </div>
+      <div class="card-price-note">14-day free trial</div>
+      <ul class="card-features">
+        <li><span class="check" aria-hidden="true">&#10003;</span> 10 devices</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> 3 networks</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> Self + 3 guests</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> Relay SLA 99.5%</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> 30-day metrics</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> Email support</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> Audit log (basic)</li>
+        <li><span class="dash" aria-hidden="true">&mdash;</span><span style="color:var(--text-muted)">ACL / Gatekeep</span></li>
+      </ul>
+      <a href="/dashboard" class="card-cta card-cta-primary">Start Solo</a>
+    </div>
+
+    <!-- Team -->
+    <div class="pricing-card">
+      <div class="card-tier">Team</div>
+      <div class="card-price">
+        <span class="card-price-amount">$6</span>
+        <span class="card-price-period">/user/mo</span>
+      </div>
+      <div class="card-price-note">14-day free trial</div>
+      <ul class="card-features">
+        <li><span class="check" aria-hidden="true">&#10003;</span> 10 devices per user</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> 5 networks</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> Unlimited members</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> Relay SLA 99.5%</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> 90-day metrics</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> Email support (48h SLA)</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> Full audit log</li>
+        <li><span class="check" aria-hidden="true">&#10003;</span> ACL / Gatekeep policies</li>
+      </ul>
+      <a href="/dashboard" class="card-cta card-cta-secondary">Start Team trial</a>
+    </div>
+
+  </div>
+
+  <!-- FAQ -->
+  <section class="faq-section">
+    <h2 class="faq-heading">Frequently asked questions</h2>
+
+    <div class="faq-item">
+      <button class="faq-question" aria-expanded="false">
+        Can I self-host Shireguard?
+        <svg class="faq-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">Yes, the client is fully open source. The managed service handles the control plane and relay infrastructure so you don't have to.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" aria-expanded="false">
+        What happens if I exceed my device limit?
+        <svg class="faq-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">You'll be prompted to upgrade. Existing devices stay connected -- nothing gets disconnected.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" aria-expanded="false">
+        Is there a free trial?
+        <svg class="faq-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">Solo and Team plans include a 14-day free trial, no credit card required.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" aria-expanded="false">
+        How does Team plan billing work?
+        <svg class="faq-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">Billed per active user per month. Add or remove users any time -- you only pay for what you use.</div></div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question" aria-expanded="false">
+        Can I switch plans?
+        <svg class="faq-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+      </button>
+      <div class="faq-answer"><div class="faq-answer-inner">Yes, upgrade or downgrade any time. Upgrades are prorated so you only pay the difference for the remainder of your billing cycle.</div></div>
+    </div>
+
+  </section>
+
+  <!-- Enterprise callout -->
+  <div class="enterprise-callout">
+    <p>Need more? <a href="mailto:hello@shireguard.com">Contact us</a> for enterprise pricing or self-hosting support.</p>
+  </div>
+
+  <!-- Footer -->
+  <footer class="landing-footer">
+    <span class="footer-copy">&copy; 2026 Shireguard</span>
+    <div class="footer-links">
+      <a href="https://github.com/doppiscantsleep/shireguard" class="footer-link" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </footer>
+
+</div><!-- .landing-wrap -->
+
+<script>
+// ── Theme ──
+const themeOrder = ['dark', 'dwarf', 'elven', 'gondor', 'rohan', 'light'];
+const themeLabels = { dark: 'Shire Dark', light: 'Shire Light', dwarf: 'Dwarven Mount', elven: 'Elven River', gondor: 'Gondor Stone', rohan: 'Rohan Plains' };
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme') || 'dark';
+  const next = themeOrder[(themeOrder.indexOf(current) + 1) % themeOrder.length];
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('sg_theme', next);
+  updateThemeLabels();
+}
+function updateThemeLabels() {
+  const t = document.documentElement.getAttribute('data-theme') || 'dark';
+  const label = themeLabels[t] || t;
+  document.querySelectorAll('.theme-name').forEach(el => el.textContent = label);
+}
+updateThemeLabels();
+
+// ── FAQ accordion ──
+document.querySelectorAll('.faq-question').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const item = btn.closest('.faq-item');
+    const answer = item.querySelector('.faq-answer');
+    const isOpen = item.classList.contains('open');
+
+    // Close all others
+    document.querySelectorAll('.faq-item.open').forEach(openItem => {
+      if (openItem !== item) {
+        openItem.classList.remove('open');
+        openItem.querySelector('.faq-question').setAttribute('aria-expanded', 'false');
+        openItem.querySelector('.faq-answer').style.maxHeight = '0';
+      }
+    });
+
+    // Toggle current
+    if (isOpen) {
+      item.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+      answer.style.maxHeight = '0';
+    } else {
+      item.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+      answer.style.maxHeight = answer.scrollHeight + 'px';
+    }
+  });
+});
+</script>
+</body>
+</html>

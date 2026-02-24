@@ -156,6 +156,12 @@ body{font-family:var(--font-sans);background:var(--bg-root);color:var(--text-pri
 .nav-logo{font-family:var(--font-display);font-size:1rem;font-weight:700;color:var(--accent);font-style:italic;text-decoration:none}
 .nav-logo span{color:var(--text-muted);font-weight:600;font-style:normal}
 .nav-right{display:flex;align-items:center;gap:.6rem}
+.nav-link{
+  font-family:var(--font-sans);font-size:.82rem;font-weight:600;
+  color:var(--text-secondary);text-decoration:none;
+  transition:color .15s;
+}
+.nav-link:hover{color:var(--text-primary)}
 .btn-signin{
   display:inline-flex;align-items:center;
   padding:.3rem .85rem;font-family:var(--font-sans);font-size:.8rem;font-weight:700;
@@ -386,6 +392,7 @@ mark.search-hl {
     <kbd class="docs-search-kbd">/</kbd>
   </div>
   <div class="nav-right">
+    <a href="/pricing" class="nav-link">Pricing</a>
     <button class="btn-theme" onclick="toggleTheme()"><span class="theme-name">Shire Dark</span></button>
     <a href="/dashboard" class="btn-signin">Sign In</a>
   </div>

@@ -49,9 +49,8 @@ app.get('/dashboard', (c) => {
 app.get('/docs', (c) => {
   return c.html(docsHtml);
 });
-app.get('/pricing', (c) => {
-  return c.html(pricingHtml);
-});
+// /pricing requires auth — unauthenticated users land on /dashboard which handles the auth flow
+app.get('/pricing', (c) => c.redirect('/dashboard'));
 app.get('/favicon.jpeg', (c) => {
   return c.body(hobDoor, 200, {
     'Content-Type': 'image/jpeg',

@@ -455,8 +455,19 @@ const (
 	ansiReset  = "\033[0m"
 	ansiGreen  = "\033[32m"
 	ansiYellow = "\033[33m"
+	ansiCyan   = "\033[36m"
 	ansiDim    = "\033[2m"
+	ansiBold   = "\033[1m"
 )
+
+const asciiLogo = "" +
+	"  +-+-+-+-+-+-+-+-+-+-+\n" +
+	"  |S|H|I|R|E|G|U|A|R|D|\n" +
+	"  +-+-+-+-+-+-+-+-+-+-+"
+
+func printLogo() {
+	fmt.Println(ansiBold + asciiLogo + ansiReset)
+}
 
 func formatUptime(seconds int64) string {
 	if seconds < 60 {
@@ -493,40 +504,52 @@ func formatHandshakeAge(secs int64) string {
 }
 
 func printDaemonStatus(ds *daemon.DaemonStatus) {
-	// Header line
-	fmt.Printf("Shireguard %s  ·  %s  ·  %s  ·  up %s\n",
-		ds.Version, ds.Interface, ds.AssignedIP, formatUptime(ds.UptimeSeconds))
+	printLogo()
 	fmt.Println()
 
-	// Public endpoint and relay
+	// Connection status line
+	statusDot := ansiGreen + "●" + ansiReset
+	fmt.Printf("  %s  Connected  ·  %s  ·  %s  ·  up %s\n",
+		statusDot, ds.AssignedIP, ds.Interface, formatUptime(ds.UptimeSeconds))
+
+	// Network details
+	fmt.Println()
 	if ds.StunEndpoint != "" {
-		fmt.Printf("  Public endpoint:  %s\n", ds.StunEndpoint)
+		fmt.Printf("  %-18s %s\n", "Public endpoint", ds.StunEndpoint)
 	}
 	if ds.Relay != nil {
-		relayLine := fmt.Sprintf("%s:%d", ds.Relay.Host, ds.Relay.Port)
+		relayAddr := fmt.Sprintf("%s:%d", ds.Relay.Host, ds.Relay.Port)
 		if ds.Relay.Connected {
-			relayLine += "  (connected)"
+			relayAddr += "  " + ansiGreen + "(connected)" + ansiReset
 		} else {
-			relayLine += "  (disconnected)"
+			relayAddr += "  " + ansiDim + "(disconnected)" + ansiReset
 		}
-		fmt.Printf("  Relay:            %s\n", relayLine)
+		fmt.Printf("  %-18s %s\n", "Relay", relayAddr)
+	}
+	if ds.Version != "" {
+		fmt.Printf("  %-18s %s\n", "Version", ds.Version)
 	}
 
+	// Peers table
+	fmt.Println()
 	if len(ds.Peers) == 0 {
-		fmt.Println("\n  No peers.")
+		fmt.Println("  No peers connected.")
 		return
 	}
 
-	fmt.Println()
-	fmt.Printf("  %-16s %-14s %-7s %-12s %-9s %s\n",
-		"PEER", "IP", "PATH", "HANDSHAKE", "TX", "RX")
+	fmt.Printf("  %s%-20s %-16s %-8s %-12s %-10s %s%s\n",
+		ansiDim, "PEER", "IP", "PATH", "HANDSHAKE", "TX", "RX", ansiReset)
+	fmt.Printf("  %s%s%s\n", ansiDim,
+		strings.Repeat("─", 76), ansiReset)
 
 	for _, p := range ds.Peers {
 		stale := p.LastHandshake == nil || p.HandshakeAgeSeconds > 90
 
 		pathColor := ansiGreen
+		pathLabel := "direct"
 		if p.ConnectionType == "relay" {
 			pathColor = ansiYellow
+			pathLabel = "relay"
 		}
 
 		handshakeStr := "never"
@@ -534,19 +557,19 @@ func printDaemonStatus(ds *daemon.DaemonStatus) {
 			handshakeStr = formatHandshakeAge(p.HandshakeAgeSeconds)
 		}
 
-		peerStr := p.Name
-		handshakeDisplay := handshakeStr
+		nameStr := p.Name
 		if stale {
-			peerStr = ansiDim + peerStr + ansiReset
-			handshakeDisplay = ansiDim + handshakeStr + ansiReset
+			nameStr = ansiDim + nameStr + ansiReset
+			handshakeStr = ansiDim + handshakeStr + ansiReset
 		}
 
-		pathStr := pathColor + p.ConnectionType + ansiReset
+		pathStr := pathColor + pathLabel + ansiReset
 
-		fmt.Printf("  %-16s %-14s %-7s %-12s %-9s %s\n",
-			peerStr, p.AssignedIP, pathStr, handshakeDisplay,
+		fmt.Printf("  %-20s %-16s %-8s %-12s %-10s %s\n",
+			nameStr, p.AssignedIP, pathStr, handshakeStr,
 			formatBytes(p.TxBytes), formatBytes(p.RxBytes))
 	}
+	fmt.Println()
 }
 
 func statusCmd() *cobra.Command {
@@ -561,44 +584,50 @@ func statusCmd() *cobra.Command {
 			}
 
 			// Daemon not running — fall back to config + API display.
+			printLogo()
+			fmt.Println()
+
 			if !cfg.IsLoggedIn() {
-				fmt.Println("Status: not logged in")
+				fmt.Printf("  %s  Not running  ·  not logged in\n", ansiDim+"○"+ansiReset)
+				fmt.Println()
+				fmt.Println("  Run 'shireguard login' to get started.")
 				return nil
 			}
 			if !cfg.IsRegistered() {
-				fmt.Printf("Logged in as: %s\n", cfg.Email)
-				fmt.Println("Status: device not registered")
+				fmt.Printf("  %s  Not running  ·  %s\n", ansiDim+"○"+ansiReset, cfg.Email)
+				fmt.Println()
+				fmt.Println("  Run 'shireguard register-device' to register this device.")
 				return nil
 			}
 
-			fmt.Printf("Account:  %s\n", cfg.Email)
-			fmt.Printf("Device:   %s (%s)\n", cfg.DeviceName, cfg.DeviceID[:8]+"...")
-			fmt.Printf("IP:       %s\n", cfg.AssignedIP)
-			fmt.Printf("Network:  %s\n", cfg.NetworkID[:8]+"...")
-			fmt.Printf("API:      %s\n", cfg.APIURL)
+			fmt.Printf("  %s  Not running  ·  %s  ·  %s\n",
+				ansiDim+"○"+ansiReset, cfg.AssignedIP, cfg.Email)
+			fmt.Println()
+			fmt.Printf("  %-18s %s (%s...)\n", "Device", cfg.DeviceName, cfg.DeviceID[:8])
+			fmt.Printf("  %-18s %s\n", "API", cfg.APIURL)
 
 			client := newClient()
 			peers, err := client.GetPeers(cfg.NetworkID)
 			if err != nil {
-				fmt.Printf("Peers:    (error: %v)\n", err)
+				fmt.Printf("\n  Peers:  (error fetching: %v)\n", err)
 				return nil
 			}
 
-			fmt.Printf("Peers:    %d\n", len(peers)-1) // Exclude self
+			fmt.Println()
+			fmt.Printf("  %s%-20s %-16s %s%s\n",
+				ansiDim, "PEER", "IP", "STATUS", ansiReset)
+			fmt.Printf("  %s%s%s\n", ansiDim, strings.Repeat("─", 44), ansiReset)
 			for _, p := range peers {
 				if p.ID == cfg.DeviceID {
 					continue
 				}
-				status := "offline"
+				statusStr := ansiDim + "offline" + ansiReset
 				if p.Online {
-					status = "online"
+					statusStr = ansiGreen + "online" + ansiReset
 				}
-				endpoint := "—"
-				if p.Endpoint != nil {
-					endpoint = *p.Endpoint
-				}
-				fmt.Printf("  %-15s %-15s %-8s %s\n", p.Name, p.AssignedIP, status, endpoint)
+				fmt.Printf("  %-20s %-16s %s\n", p.Name, p.AssignedIP, statusStr)
 			}
+			fmt.Println()
 
 			return nil
 		},

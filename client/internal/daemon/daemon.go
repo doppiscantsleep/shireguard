@@ -13,6 +13,7 @@ import (
 
 	"github.com/shireguard/shireguard/internal/api"
 	"github.com/shireguard/shireguard/internal/config"
+	"github.com/shireguard/shireguard/internal/dns"
 	"github.com/shireguard/shireguard/internal/nat"
 	"github.com/shireguard/shireguard/internal/wg"
 )
@@ -29,11 +30,12 @@ const (
 )
 
 type Daemon struct {
-	cfg      *config.Config
-	client   *api.Client
-	tunnel   *wg.Tunnel
+	cfg       *config.Config
+	client    *api.Client
+	tunnel    *wg.Tunnel
 	startedAt time.Time
 	Version   string
+	dnsServer *dns.Server
 
 	// Relay registration for this device
 	relayHost  string
@@ -110,6 +112,23 @@ func (d *Daemon) Run(ctx context.Context) error {
 	slog.Info("tunnel up", "ip", d.cfg.AssignedIP, "peers", len(tunnelCfg.Peers))
 
 	go d.startSocketServer(ctx)
+
+	// Start local MagicDNS server and install OS resolver stub.
+	const dnsListenAddr = "127.0.0.1:53530"
+	d.dnsServer = dns.New(dnsListenAddr)
+	if err := d.dnsServer.Start(); err != nil {
+		slog.Warn("MagicDNS server failed to start", "err", err)
+		d.dnsServer = nil
+	} else {
+		slog.Info("MagicDNS listening", "addr", dnsListenAddr)
+		if err := dns.InstallResolverStub(dnsListenAddr); err != nil {
+			slog.Warn("MagicDNS resolver stub install failed", "err", err)
+		}
+		defer dns.RemoveResolverStub()
+		defer d.dnsServer.Stop()
+		// Populate DNS records from the initial peer list.
+		d.updateDNS(peers)
+	}
 
 	// Probe each peer immediately so WireGuard initiates handshakes now
 	// rather than waiting up to 25 s for the first periodic keepalive.
@@ -659,6 +678,23 @@ func (d *Daemon) storePeers(peers []api.Peer) {
 		}
 	}
 	d.peersByKey = newPeers
+
+	// Update MagicDNS records outside the lock to avoid holding mu while
+	// calling into the DNS server.
+	peerSlice := make([]api.Peer, 0, len(newPeers))
+	for _, p := range newPeers {
+		peerSlice = append(peerSlice, p)
+	}
+	go d.updateDNS(peerSlice)
+}
+
+// updateDNS refreshes the MagicDNS server's peer records. Safe to call
+// concurrently; no-op when dnsServer is nil.
+func (d *Daemon) updateDNS(peers []api.Peer) {
+	if d.dnsServer == nil {
+		return
+	}
+	d.dnsServer.SetPeers(peers, d.cfg.DeviceName, d.cfg.AssignedIP)
 }
 
 // sharedRelayEndpoint returns the endpoint that WireGuard should use to reach

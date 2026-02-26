@@ -1008,13 +1008,7 @@ body{
 .relay-region{font-size:.72rem;color:var(--text-muted);font-family:var(--font-mono)}
 .relay-right{display:flex;align-items:center;gap:.65rem}
 .relay-latency{font-family:var(--font-mono);font-size:.82rem;font-weight:600}
-.btn-measure{
-  background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-secondary);
-  padding:.3rem .7rem;font-size:.75rem;font-weight:500;cursor:pointer;
-  font-family:var(--font-sans);border-radius:var(--radius);transition:all .15s;
-}
-.btn-measure:hover{color:var(--text-primary);border-color:var(--text-muted)}
-.btn-measure:disabled{opacity:.5;cursor:default}
+#drawer-relay-list{display:flex;flex-direction:column;gap:.5rem}
 .relay-spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
 @media(max-width:540px){
   .device-drawer{width:100%}
@@ -1754,54 +1748,8 @@ body{
         </div>
       </div>
 
-      <div class="billing-grid">
-        <!-- Free -->
-        <div class="billing-card">
-          <div class="billing-tier">Free</div>
-          <div class="billing-price">$0<span class="billing-period">/mo</span></div>
-          <ul class="billing-features">
-            <li><span class="bf-check">✓</span> 5 devices</li>
-            <li><span class="bf-check">✓</span> 1 network</li>
-            <li><span class="bf-check">✓</span> 5 members</li>
-            <li><span class="bf-check">✓</span> Best-effort relay</li>
-            <li><span class="bf-check">✓</span> 7-day metrics</li>
-            <li><span class="bf-dash">—</span> Audit log</li>
-            <li><span class="bf-dash">—</span> Relay SLA</li>
-          </ul>
-          <div class="billing-current-badge">Current plan</div>
-        </div>
-
-        <!-- Solo -->
-        <div class="billing-card billing-card-featured">
-          <div class="billing-tier">Solo</div>
-          <div class="billing-price">$7<span class="billing-period">/mo</span></div>
-          <ul class="billing-features">
-            <li><span class="bf-check">✓</span> 10 devices</li>
-            <li><span class="bf-check">✓</span> 3 networks</li>
-            <li><span class="bf-check">✓</span> Self + 3 guests</li>
-            <li><span class="bf-check">✓</span> Relay SLA 99.5%</li>
-            <li><span class="bf-check">✓</span> 30-day metrics</li>
-            <li><span class="bf-check">✓</span> Basic audit log</li>
-            <li><span class="bf-dash">—</span> ACL policies</li>
-          </ul>
-          <button class="btn btn-primary" style="width:100%;margin-top:auto" onclick="toast('Payments coming soon','info')">Upgrade to Solo</button>
-        </div>
-
-        <!-- Team -->
-        <div class="billing-card">
-          <div class="billing-tier">Team</div>
-          <div class="billing-price">$6<span class="billing-period">/user/mo</span></div>
-          <ul class="billing-features">
-            <li><span class="bf-check">✓</span> 10 devices / user</li>
-            <li><span class="bf-check">✓</span> 5 networks</li>
-            <li><span class="bf-check">✓</span> Unlimited members</li>
-            <li><span class="bf-check">✓</span> Relay SLA 99.5%</li>
-            <li><span class="bf-check">✓</span> 90-day metrics</li>
-            <li><span class="bf-check">✓</span> Full audit log</li>
-            <li><span class="bf-check">✓</span> ACL / Gatekeep policies</li>
-          </ul>
-          <button class="btn btn-secondary" style="width:100%;margin-top:auto" onclick="toast('Payments coming soon','info')">Upgrade to Team</button>
-        </div>
+      <div class="billing-grid" id="billing-grid">
+        <!-- Rendered dynamically by loadBilling() -->
       </div>
 
       <div class="panel" style="margin-top:1.5rem">
@@ -2721,16 +2669,7 @@ body{
   <div class="drawer-body">
     <div id="drawer-fields"></div>
     <div class="drawer-section-title">Relay Servers</div>
-    <div class="relay-entry">
-      <div>
-        <div class="relay-name">US-East-2</div>
-        <div class="relay-region">Ohio</div>
-      </div>
-      <div class="relay-right">
-        <span id="relay-latency-result"></span>
-        <button class="btn-measure" id="relay-measure-btn" onclick="measureRelayLatency()">Measure</button>
-      </div>
-    </div>
+    <div id="drawer-relay-list"></div>
   </div>
 </aside>
 
@@ -2951,7 +2890,7 @@ function navigateTo(page) {
   if (page === 'apikeys') loadApiKeys();
   if (page === 'activity') loadActivity();
   if (page === 'account') loadAccount();
-  // 'billing' is static — no fetch needed
+  if (page === 'billing') loadBilling();
   // 'tech' and 'about' are static — no fetch needed
 }
 
@@ -3815,6 +3754,94 @@ async function loadMetricsSummary() {
   }
 }
 
+// ── Billing ──
+const BILLING_PLANS = [
+  { id: 'free', name: 'Free', price: '$0', period: '/mo', featured: false, features: [
+    { has: true, text: '3 devices' }, { has: true, text: '1 network' },
+    { has: false, text: 'No member sharing' }, { has: true, text: 'Best-effort relay' },
+    { has: true, text: '7-day metrics' }, { has: false, text: 'Audit log' }, { has: false, text: 'Relay SLA' },
+  ]},
+  { id: 'solo', name: 'Solo', price: '$7', period: '/mo', featured: true, features: [
+    { has: true, text: '10 devices' }, { has: true, text: '3 networks' },
+    { has: true, text: 'Self + 3 guests' }, { has: true, text: 'Relay SLA 99.5%' },
+    { has: true, text: '30-day metrics' }, { has: true, text: 'Basic audit log' }, { has: false, text: 'ACL policies' },
+  ]},
+  { id: 'team', name: 'Team', price: '$6', period: '/user/mo', featured: false, features: [
+    { has: true, text: '10 devices / user' }, { has: true, text: '5 networks' },
+    { has: true, text: 'Unlimited members' }, { has: true, text: 'Relay SLA 99.5%' },
+    { has: true, text: '90-day metrics' }, { has: true, text: 'Full audit log' }, { has: true, text: 'ACL / Gatekeep policies' },
+  ]},
+];
+
+async function loadBilling() {
+  const grid = document.getElementById('billing-grid');
+  grid.innerHTML = '<div style="text-align:center;padding:2rem"><span class="spinner"></span></div>';
+  try {
+    const data = await api('GET', '/v1/billing/status');
+    renderBillingCards(data.tier, data.has_subscription);
+  } catch (err) {
+    grid.innerHTML = '';
+    toast(err.message, 'error');
+  }
+}
+
+function renderBillingCards(tier, hasSubscription) {
+  const grid = document.getElementById('billing-grid');
+  const isComped = tier === 'comped';
+  grid.innerHTML = BILLING_PLANS.map(plan => {
+    const isCurrent = (plan.id === tier) || (isComped && plan.id === 'free');
+    const featuredClass = plan.featured ? ' billing-card-featured' : '';
+    const features = plan.features.map(f =>
+      `<li><span class="${f.has ? 'bf-check' : 'bf-dash'}">${f.has ? '✓' : '—'}</span> ${f.text}</li>`
+    ).join('');
+
+    let action = '';
+    if (isComped) {
+      if (plan.id === 'free') action = '<div class="billing-current-badge">Comped</div>';
+    } else if (isCurrent) {
+      if (hasSubscription) {
+        action = '<button class="btn btn-secondary" style="width:100%;margin-top:auto" onclick="openPortal()">Manage Subscription</button>';
+      } else {
+        action = '<div class="billing-current-badge">Current plan</div>';
+      }
+    } else if (tier === 'free' && plan.id !== 'free') {
+      const btnClass = plan.featured ? 'btn-primary' : 'btn-secondary';
+      action = `<button class="btn ${btnClass}" style="width:100%;margin-top:auto" onclick="startCheckout('${plan.id}')">Upgrade to ${plan.name}</button>`;
+    } else if (plan.id === 'free') {
+      // User is on a paid plan, free card has no action
+      action = '';
+    } else {
+      // User is on a different paid plan — let them manage via portal
+      action = '<button class="btn btn-secondary" style="width:100%;margin-top:auto" onclick="openPortal()">Change Plan</button>';
+    }
+
+    return `<div class="billing-card${featuredClass}">
+      <div class="billing-tier">${plan.name}</div>
+      <div class="billing-price">${plan.price}<span class="billing-period">${plan.period}</span></div>
+      <ul class="billing-features">${features}</ul>
+      ${action}
+    </div>`;
+  }).join('');
+}
+
+async function startCheckout(plan) {
+  try {
+    const data = await api('POST', '/v1/billing/checkout', { plan });
+    if (data.url) window.location.href = data.url;
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function openPortal() {
+  try {
+    const data = await api('POST', '/v1/billing/portal');
+    if (data.url) window.location.href = data.url;
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
 // ── Account ──
 async function loadAccount() {
   document.getElementById('acct-email').textContent = '…';
@@ -4076,11 +4103,8 @@ function openDeviceDrawer(device) {
     btn.addEventListener('click', (e) => { e.stopPropagation(); drawerCopy(btn); });
   });
 
-  // Reset relay ping
-  document.getElementById('relay-latency-result').innerHTML = '';
-  const measureBtn = document.getElementById('relay-measure-btn');
-  measureBtn.textContent = 'Measure';
-  measureBtn.disabled = false;
+  // Show per-device relay latency
+  renderRelayLatency(device);
 
   // Open
   backdrop.classList.add('open');
@@ -4094,26 +4118,37 @@ function closeDeviceDrawer() {
 
 document.getElementById('device-drawer-backdrop').addEventListener('click', closeDeviceDrawer);
 
-async function measureRelayLatency() {
-  const btn = document.getElementById('relay-measure-btn');
-  const result = document.getElementById('relay-latency-result');
-  btn.disabled = true;
-  btn.textContent = 'Measuring...';
-  result.innerHTML = '<span class="relay-spinner"></span>';
-  try {
-    const data = await api('GET', '/v1/relays/ping');
-    const ms = data.latency_ms;
-    let colorVar = '--green';
-    if (ms > 200) colorVar = '--red';
-    else if (ms >= 80) colorVar = '--amber';
-    result.innerHTML = `<span class="relay-latency" style="color:var(${colorVar})">${ms} ms</span>`;
-    btn.textContent = 'Re-measure';
-    btn.disabled = false;
-  } catch (err) {
-    result.innerHTML = '<span class="relay-latency" style="color:var(--red)">Unreachable</span>';
-    btn.textContent = 'Re-measure';
-    btn.disabled = false;
+function renderRelayLatency(device) {
+  const container = document.getElementById('drawer-relay-list');
+  const ms = device.relay_latency_ms;
+  const isOnline = !!device.online;
+
+  if (ms == null || ms < 0) {
+    container.innerHTML = `<div class="relay-entry">
+      <div>
+        <div class="relay-name">US-East-2</div>
+        <div class="relay-region">Ohio</div>
+      </div>
+      <div class="relay-right">
+        <span class="relay-latency" style="color:var(--text-muted)">${isOnline ? 'Measuring…' : '—'}</span>
+      </div>
+    </div>`;
+    return;
   }
+
+  let colorVar = '--green';
+  if (ms > 200) colorVar = '--red';
+  else if (ms >= 80) colorVar = '--amber';
+
+  container.innerHTML = `<div class="relay-entry">
+    <div>
+      <div class="relay-name">US-East-2</div>
+      <div class="relay-region">Ohio</div>
+    </div>
+    <div class="relay-right">
+      <span class="relay-latency" style="color:var(${colorVar})">${ms} ms</span>
+    </div>
+  </div>`;
 }
 
 // ── Helpers ──

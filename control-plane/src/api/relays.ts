@@ -3,10 +3,9 @@ import type { Env } from '../types';
 import { authMiddleware } from '../auth/middleware';
 
 const relays = new Hono<{ Bindings: Env }>();
-relays.use('*', authMiddleware);
 
 // GET /relays — list active relay servers (auth_token excluded)
-relays.get('/', async (c) => {
+relays.get('/', authMiddleware, async (c) => {
   const result = await c.env.DB.prepare(
     "SELECT host, port, region FROM relays WHERE status = 'active' ORDER BY created_at"
   ).all();
@@ -16,7 +15,7 @@ relays.get('/', async (c) => {
 
 // POST /relays/register — proxy relay registration through the control plane
 // so that relay auth_tokens are never exposed to clients.
-relays.post('/register', async (c) => {
+relays.post('/register', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const { device_id } = await c.req.json<{ device_id: string }>();
 
@@ -60,32 +59,6 @@ relays.post('/register', async (c) => {
   ).bind(relay.host, data.relay_port, device_id).run();
 
   return c.json(data);
-});
-
-// GET /relays/ping — measure round-trip latency from the Cloudflare edge to the active relay
-relays.get('/ping', async (c) => {
-  const relay = await c.env.DB.prepare(
-    "SELECT host, port, region, tls_enabled FROM relays WHERE status = 'active' ORDER BY created_at LIMIT 1"
-  ).first<{ host: string; port: number; region: string; tls_enabled: number }>();
-
-  if (!relay) return c.json({ error: 'no relays available' }, 503);
-
-  const relayProto = relay.tls_enabled ? 'https' : 'http';
-  const start = Date.now();
-  try {
-    const resp = await fetch(`${relayProto}://${relay.host}:${relay.port}/health`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    const latency_ms = Date.now() - start;
-    if (!resp.ok) return c.json({ error: 'relay health check failed' }, 502);
-    return c.json({
-      relay_host: relay.host,
-      relay_region: relay.region || 'us-east-2',
-      latency_ms,
-    });
-  } catch {
-    return c.json({ error: 'relay unreachable', latency_ms: null }, 502);
-  }
 });
 
 export { relays };

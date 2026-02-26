@@ -89,13 +89,16 @@ func (c *Client) ListDevices() ([]Device, error) {
 	return resp.Devices, nil
 }
 
-func (c *Client) Heartbeat(deviceID, endpoint, version string) error {
-	body := map[string]string{}
+func (c *Client) Heartbeat(deviceID, endpoint, version string, relayLatencyMs int) error {
+	body := map[string]any{}
 	if endpoint != "" {
 		body["endpoint"] = endpoint
 	}
 	if version != "" {
 		body["client_version"] = version
+	}
+	if relayLatencyMs >= 0 {
+		body["relay_latency_ms"] = relayLatencyMs
 	}
 	var resp struct{}
 	return c.do("POST", fmt.Sprintf("/v1/devices/%s/heartbeat", deviceID), body, &resp)

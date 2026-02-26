@@ -143,7 +143,7 @@ devices.get('/', async (c) => {
       const result = await c.env.DB.prepare(`
         SELECT d.id, d.name, d.platform, d.public_key, d.network_id, d.assigned_ip,
                d.endpoint, d.last_seen_at, d.created_at, d.user_id, d.client_version,
-               u.email AS owner_email
+               d.relay_latency_ms, u.email AS owner_email
         FROM devices d
         JOIN users u ON u.id = d.user_id
         WHERE d.network_id = ?
@@ -163,7 +163,7 @@ devices.get('/', async (c) => {
   }
 
   // Default: return caller's own devices, optionally filtered by network
-  let query = 'SELECT id, name, platform, public_key, network_id, assigned_ip, endpoint, last_seen_at, created_at, client_version FROM devices WHERE user_id = ?';
+  let query = 'SELECT id, name, platform, public_key, network_id, assigned_ip, endpoint, last_seen_at, created_at, client_version, relay_latency_ms FROM devices WHERE user_id = ?';
   const params: string[] = [userId];
   if (networkId) {
     query += ' AND network_id = ?';
@@ -267,10 +267,10 @@ devices.delete('/:id', async (c) => {
 devices.post('/:id/heartbeat', async (c) => {
   const userId = c.get('userId');
   const deviceId = c.req.param('id');
-  const body = await c.req.json<{ endpoint?: string; client_version?: string }>().catch(() => ({} as { endpoint?: string; client_version?: string }));
+  const body = await c.req.json<{ endpoint?: string; client_version?: string; relay_latency_ms?: number }>().catch(() => ({} as { endpoint?: string; client_version?: string; relay_latency_ms?: number }));
 
   const sets = ["last_seen_at = datetime('now')"];
-  const params: string[] = [];
+  const params: (string | number)[] = [];
 
   if (body.endpoint) {
     sets.push('endpoint = ?');
@@ -280,6 +280,11 @@ devices.post('/:id/heartbeat', async (c) => {
   if (body.client_version) {
     sets.push('client_version = ?');
     params.push(body.client_version);
+  }
+
+  if (typeof body.relay_latency_ms === 'number' && body.relay_latency_ms >= 0) {
+    sets.push('relay_latency_ms = ?');
+    params.push(Math.round(body.relay_latency_ms));
   }
 
   params.push(deviceId, userId);

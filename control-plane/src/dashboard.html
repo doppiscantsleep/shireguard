@@ -4118,37 +4118,50 @@ function closeDeviceDrawer() {
 
 document.getElementById('device-drawer-backdrop').addEventListener('click', closeDeviceDrawer);
 
-function renderRelayLatency(device) {
+async function renderRelayLatency(device) {
   const container = document.getElementById('drawer-relay-list');
-  const ms = device.relay_latency_ms;
   const isOnline = !!device.online;
 
-  if (ms == null || ms < 0) {
-    container.innerHTML = `<div class="relay-entry">
-      <div>
-        <div class="relay-name">US-East-2</div>
-        <div class="relay-region">Ohio</div>
-      </div>
-      <div class="relay-right">
-        <span class="relay-latency" style="color:var(--text-muted)">${isOnline ? 'Measuring…' : '—'}</span>
-      </div>
-    </div>`;
+  // Parse latencies JSON from device record
+  let latencies = {};
+  if (device.relay_latencies) {
+    try { latencies = typeof device.relay_latencies === 'string' ? JSON.parse(device.relay_latencies) : device.relay_latencies; } catch {}
+  }
+  const hasLatencies = Object.keys(latencies).length > 0;
+
+  // Fetch relay list for names/regions
+  let relays = [];
+  try {
+    const data = await api('GET', '/v1/relays');
+    relays = data.relays || [];
+  } catch { /* fall through — show nothing */ }
+
+  if (!relays.length) {
+    container.innerHTML = '<div style="color:var(--text-muted);font-size:.82rem">No relays configured</div>';
     return;
   }
 
-  let colorVar = '--green';
-  if (ms > 200) colorVar = '--red';
-  else if (ms >= 80) colorVar = '--amber';
-
-  container.innerHTML = `<div class="relay-entry">
-    <div>
-      <div class="relay-name">US-East-2</div>
-      <div class="relay-region">Ohio</div>
-    </div>
-    <div class="relay-right">
-      <span class="relay-latency" style="color:var(${colorVar})">${ms} ms</span>
-    </div>
-  </div>`;
+  container.innerHTML = relays.map(r => {
+    const ms = latencies[r.host];
+    let latencyHtml;
+    if (!isOnline) {
+      latencyHtml = '<span class="relay-latency" style="color:var(--text-muted)">—</span>';
+    } else if (!hasLatencies || ms == null) {
+      latencyHtml = '<span class="relay-latency" style="color:var(--text-muted)">Measuring…</span>';
+    } else {
+      let colorVar = '--green';
+      if (ms > 200) colorVar = '--red';
+      else if (ms >= 80) colorVar = '--amber';
+      latencyHtml = `<span class="relay-latency" style="color:var(${colorVar})">${ms} ms</span>`;
+    }
+    return `<div class="relay-entry">
+      <div>
+        <div class="relay-name">${esc(r.host)}</div>
+        <div class="relay-region">${esc(r.region)}</div>
+      </div>
+      <div class="relay-right">${latencyHtml}</div>
+    </div>`;
+  }).join('');
 }
 
 // ── Helpers ──

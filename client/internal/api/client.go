@@ -89,7 +89,7 @@ func (c *Client) ListDevices() ([]Device, error) {
 	return resp.Devices, nil
 }
 
-func (c *Client) Heartbeat(deviceID, endpoint, version string, relayLatencyMs int) error {
+func (c *Client) Heartbeat(deviceID, endpoint, version string, relayLatencies map[string]int) error {
 	body := map[string]any{}
 	if endpoint != "" {
 		body["endpoint"] = endpoint
@@ -97,8 +97,8 @@ func (c *Client) Heartbeat(deviceID, endpoint, version string, relayLatencyMs in
 	if version != "" {
 		body["client_version"] = version
 	}
-	if relayLatencyMs >= 0 {
-		body["relay_latency_ms"] = relayLatencyMs
+	if len(relayLatencies) > 0 {
+		body["relay_latencies"] = relayLatencies
 	}
 	var resp struct{}
 	return c.do("POST", fmt.Sprintf("/v1/devices/%s/heartbeat", deviceID), body, &resp)
@@ -198,6 +198,23 @@ func (c *Client) GetPeers(networkID string) ([]Peer, error) {
 }
 
 // Relays
+
+type Relay struct {
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	Region     string `json:"region"`
+	TLSEnabled int    `json:"tls_enabled"`
+}
+
+func (c *Client) ListRelays() ([]Relay, error) {
+	var resp struct {
+		Relays []Relay `json:"relays"`
+	}
+	if err := c.do("GET", "/v1/relays", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Relays, nil
+}
 
 // RegisterDeviceWithRelay registers this device with the relay server via the
 // control plane. The control plane proxies the request so the relay auth_token

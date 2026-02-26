@@ -46,8 +46,8 @@ type Daemon struct {
 	// Local relay proxy address ("127.0.0.1:<port>") — set when proxy is running.
 	relayProxyAddr string
 
-	// Relay latency (ms) measured via HTTP /health. -1 means not measured yet.
-	relayLatencyMs int
+	// Relay latencies: host → ms, measured via HTTP /health on each relay.
+	relayLatencies map[string]int
 
 	// STUN-discovered public endpoint, refreshed every 5 minutes.
 	stunMu       sync.RWMutex
@@ -72,7 +72,7 @@ func New(cfg *config.Config) *Daemon {
 		client:          client,
 		tunnel:          wg.NewTunnel(),
 		startedAt:       time.Now(),
-		relayLatencyMs:  -1,
+		relayLatencies:  make(map[string]int),
 		peersByKey:      make(map[string]api.Peer),
 		usingRelay:      make(map[string]bool),
 		switchedToRelay: make(map[string]time.Time),
@@ -142,7 +142,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 
 	// 4. Send initial heartbeat with discovered endpoint
-	if err := d.client.Heartbeat(d.cfg.DeviceID, d.stunEndpoint, d.Version, d.relayLatencyMs); err != nil {
+	if err := d.client.Heartbeat(d.cfg.DeviceID, d.stunEndpoint, d.Version, d.relayLatencies); err != nil {
 		slog.Error("initial heartbeat failed", "err", err)
 	}
 
@@ -183,7 +183,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 			d.stunMu.RLock()
 			endpoint := d.stunEndpoint
 			d.stunMu.RUnlock()
-			if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint, d.Version, d.relayLatencyMs); err != nil {
+			if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint, d.Version, d.relayLatencies); err != nil {
 				heartbeatFailures++
 				slog.Error("heartbeat failed", "attempts", heartbeatFailures, "err", err)
 				heartbeatTicker.Reset(backoffDuration(heartbeatInterval, heartbeatFailures))
@@ -394,7 +394,7 @@ func (d *Daemon) stunRefreshLoop(ctx context.Context) {
 
 			if changed {
 				slog.Info("STUN endpoint changed, sending heartbeat", "endpoint", endpoint)
-				if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint, d.Version, d.relayLatencyMs); err != nil {
+				if err := d.client.Heartbeat(d.cfg.DeviceID, endpoint, d.Version, d.relayLatencies); err != nil {
 					slog.Error("heartbeat after STUN change failed", "err", err)
 				}
 			}
@@ -528,32 +528,57 @@ func (d *Daemon) startRelayProxy(ctx context.Context) (string, <-chan struct{}, 
 	return localAddr, done, nil
 }
 
-// measureRelayLatency pings the relay's HTTP /health endpoint and stores the
-// round-trip time in d.relayLatencyMs. Called before each heartbeat so the
-// control plane always has a fresh reading. Sets -1 if no relay is configured
-// or if the probe fails.
+// measureRelayLatency fetches all active relays from the control plane and
+// pings each one's HTTP /health endpoint in parallel. Results are stored in
+// d.relayLatencies as host → ms. Unreachable relays are omitted.
 func (d *Daemon) measureRelayLatency() {
-	if d.relayHost == "" {
-		d.relayLatencyMs = -1
+	relays, err := d.client.ListRelays()
+	if err != nil {
+		slog.Debug("failed to list relays for latency probe", "err", err)
 		return
 	}
 
-	url := fmt.Sprintf("http://%s:8080/health", d.relayHost)
-	client := &http.Client{Timeout: 5 * time.Second}
-	start := time.Now()
-	resp, err := client.Get(url)
-	if err != nil {
-		slog.Debug("relay latency probe failed", "err", err)
-		d.relayLatencyMs = -1
-		return
+	httpClient := &http.Client{Timeout: 5 * time.Second}
+
+	type result struct {
+		host string
+		ms   int
 	}
-	resp.Body.Close()
-	if resp.StatusCode == http.StatusOK {
-		d.relayLatencyMs = int(time.Since(start).Milliseconds())
-		slog.Debug("relay latency measured", "ms", d.relayLatencyMs)
-	} else {
-		d.relayLatencyMs = -1
+	ch := make(chan result, len(relays))
+
+	for _, r := range relays {
+		go func(host string, port int, tls int) {
+			proto := "http"
+			if tls != 0 {
+				proto = "https"
+			}
+			url := fmt.Sprintf("%s://%s:%d/health", proto, host, port)
+			start := time.Now()
+			resp, err := httpClient.Get(url)
+			if err != nil {
+				slog.Debug("relay latency probe failed", "host", host, "err", err)
+				ch <- result{host, -1}
+				return
+			}
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				ch <- result{host, int(time.Since(start).Milliseconds())}
+			} else {
+				ch <- result{host, -1}
+			}
+		}(r.Host, r.Port, r.TLSEnabled)
 	}
+
+	latencies := make(map[string]int, len(relays))
+	for range relays {
+		res := <-ch
+		if res.ms >= 0 {
+			latencies[res.host] = res.ms
+		}
+	}
+
+	d.relayLatencies = latencies
+	slog.Debug("relay latencies measured", "latencies", latencies)
 }
 
 // checkConnectivity inspects WireGuard handshake times and switches peers

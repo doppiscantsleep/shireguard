@@ -7,7 +7,7 @@ const relays = new Hono<{ Bindings: Env }>();
 // GET /relays — list active relay servers (auth_token excluded)
 relays.get('/', authMiddleware, async (c) => {
   const result = await c.env.DB.prepare(
-    "SELECT host, port, region FROM relays WHERE status = 'active' ORDER BY created_at"
+    "SELECT host, port, region, tls_enabled FROM relays WHERE status = 'active' ORDER BY created_at"
   ).all();
 
   return c.json({ relays: result.results });

@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	probing "github.com/prometheus-community/pro-bing"
 	"github.com/shireguard/shireguard/internal/api"
 	"github.com/shireguard/shireguard/internal/config"
 	"github.com/shireguard/shireguard/internal/dns"
@@ -529,16 +529,14 @@ func (d *Daemon) startRelayProxy(ctx context.Context) (string, <-chan struct{}, 
 }
 
 // measureRelayLatency fetches all active relays from the control plane and
-// pings each one's HTTP /health endpoint in parallel. Results are stored in
-// d.relayLatencies as host → ms. Unreachable relays are omitted.
+// sends 3 ICMP pings to each in parallel. Results are stored in
+// d.relayLatencies as host → average RTT in ms. Unreachable relays are omitted.
 func (d *Daemon) measureRelayLatency() {
 	relays, err := d.client.ListRelays()
 	if err != nil {
 		slog.Debug("failed to list relays for latency probe", "err", err)
 		return
 	}
-
-	httpClient := &http.Client{Timeout: 5 * time.Second}
 
 	type result struct {
 		host string
@@ -547,26 +545,28 @@ func (d *Daemon) measureRelayLatency() {
 	ch := make(chan result, len(relays))
 
 	for _, r := range relays {
-		go func(host string, port int, tls int) {
-			proto := "http"
-			if tls != 0 {
-				proto = "https"
-			}
-			url := fmt.Sprintf("%s://%s:%d/health", proto, host, port)
-			start := time.Now()
-			resp, err := httpClient.Get(url)
+		go func(host string) {
+			pinger, err := probing.NewPinger(host)
 			if err != nil {
-				slog.Debug("relay latency probe failed", "host", host, "err", err)
+				slog.Debug("relay ping setup failed", "host", host, "err", err)
 				ch <- result{host, -1}
 				return
 			}
-			resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				ch <- result{host, int(time.Since(start).Milliseconds())}
-			} else {
+			pinger.Count = 3
+			pinger.Timeout = 5 * time.Second
+			pinger.SetPrivileged(true)
+			if err := pinger.Run(); err != nil {
+				slog.Debug("relay ping failed", "host", host, "err", err)
 				ch <- result{host, -1}
+				return
 			}
-		}(r.Host, r.Port, r.TLSEnabled)
+			stats := pinger.Statistics()
+			if stats.PacketsRecv == 0 {
+				ch <- result{host, -1}
+				return
+			}
+			ch <- result{host, int(stats.AvgRtt.Milliseconds())}
+		}(r.Host)
 	}
 
 	latencies := make(map[string]int, len(relays))

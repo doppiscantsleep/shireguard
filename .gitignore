@@ -42,3 +42,6 @@ coverage/
 
 # Local runbook — never commit
 therunbook.md
+
+# iOS (separate repos, large build artifacts)
+ios/

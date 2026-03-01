@@ -7,10 +7,12 @@ import { networks } from './api/networks';
 import { metrics } from './api/metrics';
 import { relays } from './api/relays';
 import { activity } from './api/activity';
+import { billing } from './api/billing';
 import { networkRoutes } from './api/routes';
 import { authMiddleware } from './auth/middleware';
 import { logAudit } from './lib/audit';
-import { getUserTier, TIER_LIMITS } from './lib/tiers';
+import { getUserTier, TIER_LIMITS, type Tier } from './lib/tiers';
+import { timingSafeEqual } from './lib/stripe';
 
 export { SignalingRoom } from './signaling/room';
 
@@ -76,6 +78,7 @@ app.route('/v1/networks', networks);
 app.route('/v1/metrics', metrics);
 app.route('/v1/relays', relays);
 app.route('/v1/activity', activity);
+app.route('/v1/billing', billing);
 
 // POST /v1/invites/:token/accept — accept a network invite
 app.post('/v1/invites/:token/accept', authMiddleware, async (c) => {
@@ -175,6 +178,35 @@ app.post('/v1/invites/:token/accept', authMiddleware, async (c) => {
   }));
 
   return c.json({ network_id: invite.network_id, network_name: network.name, role: invite.role });
+});
+
+// POST /v1/admin/tier — set a user's tier by email (requires ADMIN_SECRET bearer token)
+app.post('/v1/admin/tier', async (c) => {
+  const authHeader = c.req.header('Authorization') ?? '';
+  const expected = `Bearer ${c.env.ADMIN_SECRET ?? ''}`;
+  if (!c.env.ADMIN_SECRET || !timingSafeEqual(authHeader, expected)) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const body = await c.req.json<{ email: string; tier: string }>();
+  if (!body.email || !body.tier) {
+    return c.json({ error: 'email and tier are required' }, 400);
+  }
+
+  const validTiers: Tier[] = ['free', 'solo', 'team', 'comped'];
+  if (!validTiers.includes(body.tier as Tier)) {
+    return c.json({ error: `tier must be one of: ${validTiers.join(', ')}` }, 400);
+  }
+
+  const result = await c.env.DB.prepare('UPDATE users SET tier = ? WHERE email = ?')
+    .bind(body.tier, body.email)
+    .run();
+
+  if (!result.meta.changes) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  return c.json({ email: body.email, tier: body.tier, updated: true });
 });
 
 // WebSocket signaling upgrade

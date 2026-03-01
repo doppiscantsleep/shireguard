@@ -801,9 +801,10 @@ auth.get('/poll', async (c) => {
 auth.get('/me', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const user = await c.env.DB.prepare(
-    'SELECT email, apple_sub, google_sub, github_id, created_at FROM users WHERE id = ?'
+    'SELECT email, tier, apple_sub, google_sub, github_id, created_at FROM users WHERE id = ?'
   ).bind(userId).first<{
     email: string;
+    tier: string | null;
     apple_sub: string | null;
     google_sub: string | null;
     github_id: string | null;
@@ -814,6 +815,7 @@ auth.get('/me', authMiddleware, async (c) => {
 
   return c.json({
     email: user.email,
+    tier: user.tier || 'free',
     providers: {
       apple: !!user.apple_sub,
       google: !!user.google_sub,

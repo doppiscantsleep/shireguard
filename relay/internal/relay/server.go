@@ -1,8 +1,8 @@
 package relay
 
 import (
-	"bytes"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -151,9 +151,9 @@ func NewServer(host string, udpBase int, authToken string, version, commit strin
 func (s *RelayServer) ListenAndServe(addr, certFile, keyFile string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
-	mux.HandleFunc("GET /status", s.handleStatus)
+	mux.HandleFunc("GET /status", s.requireAuth(s.handleStatus))
 	mux.HandleFunc("POST /register", s.handleRegister)
-	mux.Handle("GET /metrics", promhttp.HandlerFor(s.registry, promhttp.HandlerOpts{}))
+	mux.HandleFunc("GET /metrics", s.requireAuth(promhttp.HandlerFor(s.registry, promhttp.HandlerOpts{}).ServeHTTP))
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           mux,
@@ -167,6 +167,18 @@ func (s *RelayServer) ListenAndServe(addr, certFile, keyFile string) error {
 		return srv.ListenAndServeTLS(certFile, keyFile)
 	}
 	return srv.ListenAndServe()
+}
+
+func (s *RelayServer) requireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		expected := []byte("Bearer " + s.authToken)
+		actual := []byte(r.Header.Get("Authorization"))
+		if subtle.ConstantTimeCompare(actual, expected) != 1 {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
 }
 
 func (s *RelayServer) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +224,7 @@ func (s *RelayServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 	// Validate auth token
 	authHeader := r.Header.Get("Authorization")
 	expected := "Bearer " + s.authToken
-	if authHeader != expected {
+	if subtle.ConstantTimeCompare([]byte(authHeader), []byte(expected)) != 1 {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
@@ -316,7 +328,7 @@ func (slot *RelaySlot) serve(conn net.PacketConn) {
 			continue
 		}
 
-		if n == 19 && buf[0] == 0xFF && bytes.Equal(buf[3:19], slot.token[:]) {
+		if n == 19 && buf[0] == 0xFF && subtle.ConstantTimeCompare(buf[3:19], slot.token[:]) == 1 {
 			// Keepalive: [0xFF][2 reserved bytes][token 16 bytes]
 			// Set homeAddr to the actual source address of the keepalive.
 			// Since the client sends keepalives and WireGuard data through

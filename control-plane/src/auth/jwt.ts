@@ -1,7 +1,7 @@
 import type { JWTPayload } from '../types';
 
 const ALGORITHM = { name: 'HMAC', hash: 'SHA-256' };
-const ACCESS_TOKEN_TTL = 15 * 60; // 15 minutes
+const ACCESS_TOKEN_TTL = 4 * 60 * 60; // 4 hours
 const REFRESH_TOKEN_TTL = 7 * 24 * 60 * 60; // 7 days
 
 export async function createAccessToken(
